@@ -794,7 +794,6 @@ dependencies = [
  "game",
  "lazy_static",
  "pollster",
- "tracing",
  "wgpu",
  "winit",
 ]

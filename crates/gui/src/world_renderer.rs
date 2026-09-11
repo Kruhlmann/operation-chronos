@@ -32,6 +32,7 @@ pub struct WorldRenderer {
 }
 
 impl WorldRenderer {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         device: &wgpu::Device,
         queue: &wgpu::Queue,

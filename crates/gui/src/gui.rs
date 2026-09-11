@@ -26,7 +26,7 @@ pub struct Running {
 
 pub enum State {
     Uninitialized,
-    Running(Running),
+    Running(Box<Running>),
 }
 
 pub struct Gui {
@@ -106,7 +106,7 @@ impl ApplicationHandler for Gui {
         );
         renderer.set_map(&gpu.queue, &world_state.map);
 
-        self.state = State::Running(Running {
+        self.state = State::Running(Box::new(Running {
             window,
             gpu,
             assets,
@@ -114,7 +114,7 @@ impl ApplicationHandler for Gui {
             state: world_state,
             input: Input::default(),
             hud,
-        });
+        }));
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
@@ -207,6 +207,7 @@ impl ApplicationHandler for Gui {
 }
 
 impl Gui {
+    #[allow(clippy::result_unit_err)]
     pub fn run(&mut self) -> Result<(), ()> {
         let event_loop = EventLoop::new().expect("failed to create event loop");
         event_loop.run_app(self).map_err(|_| ())?;
