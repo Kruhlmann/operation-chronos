@@ -1,0 +1,21 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+
+[workspace.dependencies]
+game.path = "crates/game"
+gui.path = "crates/gui"
+launcher.path = "crates/launcher"
+
+bytemuck = { version = "1", features = ["derive"] }
+image = "0.25"
+lazy_static = "1.5.0"
+pollster = "1.0.1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+wgpu = "30.0.1"
+winit = "0.30.13"

@@ -1,0 +1,9 @@
+[package]
+name = "game"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+wgpu.workspace = true
+image.workspace = true
+tracing.workspace = true
