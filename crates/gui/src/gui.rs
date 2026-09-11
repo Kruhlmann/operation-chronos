@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::{Gpu, HudRenderer, Input, WorldRenderer};
+use crate::{Gpu, HudRenderer, Input, InputEventSideEffect, WorldRenderer};
 use game::constants::{
     ASSET_DIRECTORY, FRAME_TIME, SPRITE_SHEET_COLUMNS, SPRITE_SHEET_PATH, SPRITE_SHEET_ROWS,
     SPRITE_SIZE_PIXELS,
@@ -192,16 +192,20 @@ impl ApplicationHandler for Gui {
                     let text = format!("FPS: {fps:.0}  {frame_ms:.2} MS");
                     running.hud.set_text(&running.gpu.queue, &text, [8.0, 8.0]);
                 }
+                running
+                    .hud
+                    .set_marquee(&running.gpu.queue, running.state.selection.marquee.as_ref());
                 running.gpu.render(&running.renderer, &running.hud);
             }
 
-            other => {
-                if running.input.handle(&other, &mut running.state) {
-                    running
-                        .renderer
-                        .set_camera(&running.gpu.queue, &running.state.camera);
-                }
-            }
+            other => match running.input.handle(&other, &mut running.state) {
+                Some(InputEventSideEffect::UpdateCamera) => running
+                    .renderer
+                    .set_camera(&running.gpu.queue, &running.state.camera),
+                Some(InputEventSideEffect::ClickLeft(p))
+                | Some(InputEventSideEffect::ClickRight(p)) => eprintln!("click {p:?}"),
+                None => {}
+            },
         }
     }
 }

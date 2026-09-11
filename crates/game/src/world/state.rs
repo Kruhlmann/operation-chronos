@@ -1,10 +1,12 @@
 use crate::constants::{DEFAULT_MAP_HEIGHT, DEFAULT_MAP_WIDTH};
 use crate::world::camera::Camera;
 use crate::world::map::{Map, Tile};
+use crate::world::selection::{Marquee, Selection};
 
 pub struct World {
     pub map: Map,
     pub camera: Camera,
+    pub selection: Selection,
 }
 
 impl World {
@@ -13,7 +15,11 @@ impl World {
         let mut camera = Camera::new(viewport);
         camera.set_bounds(bounds);
         camera.set_center(bounds.center());
-        Self { map, camera }
+        Self {
+            map,
+            camera,
+            selection: Selection::default(),
+        }
     }
 
     pub fn placeholder(viewport: [f32; 2]) -> Self {
@@ -42,5 +48,21 @@ impl World {
 
     pub fn zoom_at(&mut self, factor: f32, cursor: [f32; 2]) {
         self.camera.zoom_at_cursor(factor, cursor);
+    }
+
+    /// Begin or update the drag-selection marquee.
+    pub fn set_marquee(&mut self, origin: [f32; 2], current: [f32; 2]) {
+        self.selection.marquee = Some(Marquee { origin, current });
+    }
+
+    /// Commit the current marquee: run hit-testing and populate `selected`.
+    /// Currently a stub; no world entities exist yet.
+    pub fn commit_marquee(&mut self) {
+        // TODO: hit-test entities within the marquee bounds once entities exist.
+        self.selection.marquee = None;
+    }
+
+    pub fn clear_marquee(&mut self) {
+        self.selection.marquee = None;
     }
 }
