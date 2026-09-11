@@ -1,7 +1,7 @@
 use crate::constants::{DEFAULT_MAP_HEIGHT, DEFAULT_MAP_WIDTH};
-use crate::world::camera::Camera;
-use crate::world::map::{Map, Tile};
-use crate::world::selection::{Marquee, Selection};
+use crate::sim::camera::Camera;
+use crate::sim::map::{Map, Tile};
+use crate::sim::selection::{Marquee, Selection};
 
 pub struct World {
     pub map: Map,

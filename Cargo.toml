@@ -8,7 +8,7 @@ edition = "2024"
 license = "MIT"
 
 [workspace.dependencies]
-game.path = "crates/game"
+world.path = "crates/world"
 gui.path = "crates/gui"
 launcher.path = "crates/launcher"
 

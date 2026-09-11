@@ -1,8 +1,8 @@
 use tracing_subscriber::EnvFilter;
 
-use game::AssetLibrary;
-use game::constants::{ASSET_DIRECTORY, DEBUG_PRAGMA};
 use gui::Gui;
+use world::AssetLibrary;
+use world::constants::{ASSET_DIRECTORY, DEBUG_PRAGMA};
 
 fn main() {
     let default_level = if cfg!(debug_assertions) {

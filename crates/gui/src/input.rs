@@ -1,5 +1,5 @@
-use game::constants::CAMERA_ZOOM_STEP;
-use game::{World, constants::PAN_DRAG_TOLERANCE};
+use world::constants::CAMERA_ZOOM_STEP;
+use world::{World, constants::PAN_DRAG_TOLERANCE};
 
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 

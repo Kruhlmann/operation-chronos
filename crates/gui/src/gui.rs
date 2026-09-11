@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::{Gpu, HudRenderer, Input, InputEventSideEffect, WorldRenderer};
-use game::constants::{
+use world::constants::{
     ASSET_DIRECTORY, FRAME_TIME, SPRITE_SHEET_COLUMNS, SPRITE_SHEET_PATH, SPRITE_SHEET_ROWS,
     SPRITE_SIZE_PIXELS,
 };
@@ -17,9 +17,9 @@ use winit::{
 pub struct Running {
     pub window: Arc<Window>,
     pub gpu: Gpu,
-    pub assets: game::GpuAssets,
+    pub assets: world::GpuAssets,
     pub renderer: WorldRenderer,
-    pub state: game::World,
+    pub state: world::World,
     pub input: Input,
     pub hud: HudRenderer,
 }
@@ -31,7 +31,7 @@ pub enum State {
 
 pub struct Gui {
     pub state: State,
-    pub library: game::AssetLibrary,
+    pub library: world::AssetLibrary,
     pub next_frame_scheduled: Instant,
     pub initial_logical_size: [u32; 2],
     fps_last_frame: Instant,
@@ -40,7 +40,7 @@ pub struct Gui {
 }
 
 impl Gui {
-    pub fn new(library: game::AssetLibrary) -> Self {
+    pub fn new(library: world::AssetLibrary) -> Self {
         Self {
             state: State::Uninitialized,
             library,
@@ -74,7 +74,7 @@ impl ApplicationHandler for Gui {
 
         let gpu = pollster::block_on(Gpu::new(window.clone()));
 
-        let assets = game::GpuAssets::load(&gpu.device, &gpu.queue, &self.library)
+        let assets = world::GpuAssets::load(&gpu.device, &gpu.queue, &self.library)
             .expect("failed to load GPU assets");
 
         let sprite_sheet_path = format!("{ASSET_DIRECTORY}/{SPRITE_SHEET_PATH}");
@@ -92,7 +92,7 @@ impl ApplicationHandler for Gui {
         );
         hud.set_text(&gpu.queue, "FPS: 0", [8.0, 8.0]);
 
-        let world_state = game::World::placeholder(surface_size);
+        let world_state = world::World::placeholder(surface_size);
 
         let mut renderer = WorldRenderer::new(
             &gpu.device,

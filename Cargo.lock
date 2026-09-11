@@ -689,15 +689,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "game"
-version = "0.0.1"
-dependencies = [
- "image",
- "tracing",
- "wgpu",
-]
-
-[[package]]
 name = "gethostname"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -791,11 +782,11 @@ name = "gui"
 version = "0.0.1"
 dependencies = [
  "bytemuck",
- "game",
  "lazy_static",
  "pollster",
  "wgpu",
  "winit",
+ "world",
 ]
 
 [[package]]
@@ -1006,10 +997,10 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 name = "launcher"
 version = "0.0.1"
 dependencies = [
- "game",
  "gui",
  "tracing",
  "tracing-subscriber",
+ "world",
 ]
 
 [[package]]
@@ -3288,6 +3279,15 @@ name = "wit-bindgen"
 version = "0.57.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
+
+[[package]]
+name = "world"
+version = "0.0.1"
+dependencies = [
+ "image",
+ "tracing",
+ "wgpu",
+]
 
 [[package]]
 name = "x11-dl"
