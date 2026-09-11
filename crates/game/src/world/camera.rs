@@ -1,17 +1,14 @@
-/// 2D camera mapping world-pixel space to clip space.
-///
-/// The world is expressed in pixels (tiles are pre-projected to pixel
-/// positions by the map). The camera applies pan (`center`) and `zoom`, then
-/// an orthographic projection sized to the viewport. Rotation could be added
-/// later purely inside `view_projection` without touching renderers.
+use crate::constants::{CAMERA_MAX_ZOOM, CAMERA_MIN_ZOOM};
+use crate::world::map::WorldBounds;
+
 #[derive(Debug, Clone, Copy)]
 pub struct Camera {
-    /// World-pixel position centered in the viewport (pan).
     pub center: [f32; 2],
-    /// Zoom factor (1.0 = one world pixel per screen pixel).
     pub zoom: f32,
-    /// Viewport size in pixels.
     pub viewport: [f32; 2],
+    pub bounds: WorldBounds,
+    pub min_zoom: f32,
+    pub max_zoom: f32,
 }
 
 impl Camera {
@@ -20,34 +17,82 @@ impl Camera {
             center: [0.0, 0.0],
             zoom: 1.0,
             viewport,
+            bounds: WorldBounds {
+                min: [0.0, 0.0],
+                max: [0.0, 0.0],
+            },
+            min_zoom: CAMERA_MIN_ZOOM,
+            max_zoom: CAMERA_MAX_ZOOM,
         }
     }
 
     pub fn set_viewport(&mut self, viewport: [f32; 2]) {
         self.viewport = viewport;
+        self.clamp_center();
+    }
+
+    pub fn set_bounds(&mut self, bounds: WorldBounds) {
+        self.bounds = bounds;
+        self.clamp_center();
     }
 
     pub fn set_center(&mut self, center: [f32; 2]) {
         self.center = center;
+        self.clamp_center();
     }
 
     pub fn set_zoom(&mut self, zoom: f32) {
-        self.zoom = zoom.max(0.01);
+        self.zoom = zoom.clamp(self.min_zoom, self.max_zoom);
+        self.clamp_center();
     }
 
-    /// Column-major 4x4 matrix mapping world-pixel coordinates to clip space.
-    ///
-    /// world -> (translate by -center) -> (scale by zoom) -> (ortho to clip).
+    pub fn pan_by_screen_delta(&mut self, dx: f32, dy: f32) {
+        self.center[0] -= dx / self.zoom;
+        self.center[1] -= dy / self.zoom;
+        self.clamp_center();
+    }
+
+    pub fn zoom_at_cursor(&mut self, factor: f32, cursor: [f32; 2]) {
+        let old_zoom = self.zoom;
+        let new_zoom = (self.zoom * factor).clamp(self.min_zoom, self.max_zoom);
+        if new_zoom == old_zoom {
+            return;
+        }
+
+        let world = self.screen_to_world(cursor);
+        self.zoom = new_zoom;
+        let world_after = self.screen_to_world(cursor);
+        self.center[0] += world[0] - world_after[0];
+        self.center[1] += world[1] - world_after[1];
+        self.clamp_center();
+    }
+
+    pub fn screen_to_world(&self, screen: [f32; 2]) -> [f32; 2] {
+        let offset_x = screen[0] - self.viewport[0] * 0.5;
+        let offset_y = screen[1] - self.viewport[1] * 0.5;
+        [
+            self.center[0] + offset_x / self.zoom,
+            self.center[1] + offset_y / self.zoom,
+        ]
+    }
+
+    fn clamp_center(&mut self) {
+        for axis in 0..2 {
+            let min = self.bounds.min[axis];
+            let max = self.bounds.max[axis];
+            if max > min {
+                self.center[axis] = self.center[axis].clamp(min, max);
+            } else {
+                self.center[axis] = (min + max) * 0.5;
+            }
+        }
+    }
+
     pub fn view_projection(&self) -> [[f32; 4]; 4] {
         let w = self.viewport[0].max(1.0);
         let h = self.viewport[1].max(1.0);
-
-        // Combined scale: world pixels -> clip units. y is flipped because clip
-        // space is y-up while world pixels are y-down.
         let sx = 2.0 * self.zoom / w;
         let sy = -2.0 * self.zoom / h;
-
-        // Translation places `center` at clip origin.
         let tx = -self.center[0] * sx;
         let ty = -self.center[1] * sy;
 

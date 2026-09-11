@@ -4,16 +4,10 @@ use crate::constants::{
 
 pub enum Tile {
     Void,
-    /// A grass tile. `variant` selects one of the grass top overlays.
-    Grass {
-        variant: u8,
-    },
+    Grass { variant: u8 },
 }
 
 impl Tile {
-    /// Sprite layers drawn for this tile, back-most first. Each tile draws a
-    /// base block, then a decorative top on top of it. Returns an empty slice
-    /// for tiles that are not drawn at all.
     pub fn sprite_layers(&self) -> Vec<u16> {
         match self {
             Tile::Void => Vec::new(),
@@ -25,7 +19,21 @@ impl Tile {
     }
 }
 
-/// A single drawable sprite layer placed in world-pixel space.
+#[derive(Debug, Clone, Copy)]
+pub struct WorldBounds {
+    pub min: [f32; 2],
+    pub max: [f32; 2],
+}
+
+impl WorldBounds {
+    pub fn center(&self) -> [f32; 2] {
+        [
+            (self.min[0] + self.max[0]) * 0.5,
+            (self.min[1] + self.max[1]) * 0.5,
+        ]
+    }
+}
+
 pub struct TilePlacement {
     /// World-pixel position of the layer's anchor.
     pub world_pos: [f32; 2],
@@ -39,8 +47,6 @@ pub struct Map {
 }
 
 impl Map {
-    /// Project tile grid coordinates to world-pixel space using an isometric
-    /// (diamond) layout.
     pub fn tile_to_world(x: u16, y: u16) -> [f32; 2] {
         let fx = x as f32;
         let fy = y as f32;
@@ -50,12 +56,26 @@ impl Map {
         ]
     }
 
-    /// Drawable sprite layers in world-pixel space, sorted back-to-front so
-    /// nearer tiles overdraw farther ones (painter's algorithm). Within a
-    /// single tile, layers keep their declared order (base before top).
+    pub fn world_bounds(&self) -> WorldBounds {
+        if self.width == 0 || self.height == 0 {
+            return WorldBounds {
+                min: [0.0, 0.0],
+                max: [0.0, 0.0],
+            };
+        }
+        let w = self.width - 1;
+        let h = self.height - 1;
+        let min_x = -(h as f32) * ISO_TILE_HALF_WIDTH;
+        let max_x = (w as f32) * ISO_TILE_HALF_WIDTH;
+        let min_y = 0.0;
+        let max_y = (w as f32 + h as f32) * ISO_TILE_HALF_HEIGHT;
+        WorldBounds {
+            min: [min_x, min_y],
+            max: [max_x, max_y],
+        }
+    }
+
     pub fn placements(&self) -> Vec<TilePlacement> {
-        // (tile_depth, layer_within_tile, placement) — a stable sort by the
-        // first two keys keeps base-before-top ordering per tile.
         let mut out: Vec<(u16, usize, TilePlacement)> = Vec::new();
 
         for (i, tile) in self.tiles.iter().enumerate() {

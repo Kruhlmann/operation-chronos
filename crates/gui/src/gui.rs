@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::{Gpu, HudRenderer, WorldRenderer};
+use crate::{Gpu, HudRenderer, Input, WorldRenderer};
 use game::constants::{
     ASSET_DIRECTORY, FRAME_TIME, SPRITE_SHEET_COLUMNS, SPRITE_SHEET_PATH, SPRITE_SHEET_ROWS,
     SPRITE_SIZE_PIXELS,
@@ -18,8 +18,9 @@ pub struct Running {
     pub window: Arc<Window>,
     pub gpu: Gpu,
     pub assets: game::GpuAssets,
-    pub world: WorldRenderer,
-    pub camera: game::Camera,
+    pub renderer: WorldRenderer,
+    pub state: game::World,
+    pub input: Input,
     pub hud: HudRenderer,
 }
 
@@ -91,16 +92,9 @@ impl ApplicationHandler for Gui {
         );
         hud.set_text(&gpu.queue, "FPS: 0", [8.0, 8.0]);
 
-        // Build the world renderer and a placeholder map until the real world
-        // exists.
-        let map = placeholder_map();
+        let world_state = game::World::placeholder(surface_size);
 
-        // Center the camera on the middle of the map (in world-pixel space).
-        let mut camera = game::Camera::new(surface_size);
-        let mid = game::Map::tile_to_world(map.width / 2, map.height / 2);
-        camera.set_center(mid);
-
-        let mut world = WorldRenderer::new(
+        let mut renderer = WorldRenderer::new(
             &gpu.device,
             &gpu.queue,
             gpu.config.format,
@@ -108,16 +102,17 @@ impl ApplicationHandler for Gui {
             SPRITE_SHEET_COLUMNS,
             SPRITE_SHEET_ROWS,
             SPRITE_SIZE_PIXELS as f32,
-            &camera,
+            &world_state.camera,
         );
-        world.set_map(&gpu.queue, &map);
+        renderer.set_map(&gpu.queue, &world_state.map);
 
         self.state = State::Running(Running {
             window,
             gpu,
             assets,
-            world,
-            camera,
+            renderer,
+            state: world_state,
+            input: Input::default(),
             hud,
         });
     }
@@ -144,11 +139,10 @@ impl ApplicationHandler for Gui {
         window_id: WindowId,
         event: WindowEvent,
     ) {
-        if let State::Running(running) = &self.state {
-            if running.window.id() != window_id {
-                return;
-            }
-        } else {
+        let State::Running(running) = &mut self.state else {
+            return;
+        };
+        if running.window.id() != window_id {
             return;
         }
 
@@ -158,41 +152,30 @@ impl ApplicationHandler for Gui {
             }
 
             WindowEvent::Resized(size) => {
-                let State::Running(running) = &mut self.state else {
-                    return;
-                };
                 running.gpu.resize(size.width, size.height);
                 if size.height > 0 {
-                    running.hud.set_surface_size(
-                        &running.gpu.queue,
-                        [size.width as f32, size.height as f32],
-                    );
+                    let viewport = [size.width as f32, size.height as f32];
+                    running.hud.set_surface_size(&running.gpu.queue, viewport);
+                    running.state.resize(viewport);
                     running
-                        .camera
-                        .set_viewport([size.width as f32, size.height as f32]);
-                    running
-                        .world
-                        .set_camera(&running.gpu.queue, &running.camera);
+                        .renderer
+                        .set_camera(&running.gpu.queue, &running.state.camera);
                 }
             }
 
             WindowEvent::RedrawRequested => {
-                // Measure this frame's delta and fold it into an exponential
-                // moving average for smooth readings.
                 let now = Instant::now();
                 let dt = now.duration_since(self.fps_last_frame).as_secs_f32();
                 self.fps_last_frame = now;
 
                 if dt > 0.0 {
-                    const SMOOTHING: f32 = 0.1; // weight of the newest sample.
+                    const SMOOTHING: f32 = 0.1;
                     if self.avg_frame_time == 0.0 {
                         self.avg_frame_time = dt;
                     } else {
                         self.avg_frame_time += SMOOTHING * (dt - self.avg_frame_time);
                     }
                 }
-
-                // Refresh the HUD text a few times per second, not every frame.
                 let refresh = now.duration_since(self.hud_last_update).as_secs_f32() >= 0.25;
                 if refresh {
                     self.hud_last_update = now;
@@ -205,17 +188,20 @@ impl ApplicationHandler for Gui {
                     0.0
                 };
 
-                let State::Running(running) = &mut self.state else {
-                    return;
-                };
                 if refresh {
                     let text = format!("FPS: {fps:.0}  {frame_ms:.2} MS");
                     running.hud.set_text(&running.gpu.queue, &text, [8.0, 8.0]);
                 }
-                running.gpu.render(&running.world, &running.hud);
+                running.gpu.render(&running.renderer, &running.hud);
             }
 
-            _ => {}
+            other => {
+                if running.input.handle(&other, &mut running.state) {
+                    running
+                        .renderer
+                        .set_camera(&running.gpu.queue, &running.state.camera);
+                }
+            }
         }
     }
 }
@@ -225,22 +211,5 @@ impl Gui {
         let event_loop = EventLoop::new().expect("failed to create event loop");
         event_loop.run_app(self).map_err(|_| ())?;
         Ok(())
-    }
-}
-
-/// Temporary map used until the real world is implemented: a small grid of
-/// grass tiles cycling through the three grass top variants.
-fn placeholder_map() -> game::Map {
-    let width: u16 = 8;
-    let height: u16 = 6;
-    let tiles = (0..(width as usize * height as usize))
-        .map(|i| game::Tile::Grass {
-            variant: (i % 3) as u8,
-        })
-        .collect();
-    game::Map {
-        width,
-        height,
-        tiles,
     }
 }

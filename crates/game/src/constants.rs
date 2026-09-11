@@ -21,6 +21,11 @@ pub const GRASS_TOP_SPRITES: [u16; 3] = [
     sprite_index!(1, 1),
     sprite_index!(1, 2),
 ];
+pub const CAMERA_MIN_ZOOM: f32 = 0.25;
+pub const CAMERA_MAX_ZOOM: f32 = 4.0;
+pub const CAMERA_ZOOM_STEP: f32 = 0.1;
+pub const DEFAULT_MAP_WIDTH: u16 = 64;
+pub const DEFAULT_MAP_HEIGHT: u16 = 64;
 pub const FRAME_TIME: Duration = Duration::from_nanos(1_000_000_000 / 60);
 pub const FONT_GLYPH_SIZE: u32 = 8;
 pub const FONT_MAX_CHARACTERS: usize = 256;
