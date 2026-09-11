@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::{Gpu, HudRenderer, Input, InputEventSideEffect, WorldRenderer};
+use crate::{Gpu, HudRenderer, Input, InputEventSideEffect, UnitRenderer, WorldRenderer};
 use world::constants::{
     ASSET_DIRECTORY, FRAME_TIME, SPRITE_SHEET_COLUMNS, SPRITE_SHEET_PATH, SPRITE_SHEET_ROWS,
     SPRITE_SIZE_PIXELS,
@@ -19,9 +19,12 @@ pub struct Running {
     pub gpu: Gpu,
     pub assets: world::GpuAssets,
     pub renderer: WorldRenderer,
+    pub unit: UnitRenderer,
+    pub turret: UnitRenderer,
     pub state: world::World,
     pub input: Input,
     pub hud: HudRenderer,
+    unit_anim_start: Instant,
 }
 
 pub enum State {
@@ -106,14 +109,45 @@ impl ApplicationHandler for Gui {
         );
         renderer.set_map(&gpu.queue, &world_state.map);
 
+        let tank_body_path = format!("{ASSET_DIRECTORY}/unit/double-barrel-tank/body.png");
+        let tank_body = assets
+            .get(&tank_body_path)
+            .unwrap_or_else(|| panic!("tank body sheet not loaded: {tank_body_path}"));
+        let unit = UnitRenderer::new(
+            &gpu.device,
+            &gpu.queue,
+            gpu.config.format,
+            tank_body,
+            70.0,
+            48.0,
+            &world_state.camera,
+        );
+
+        let turret_path = format!("{ASSET_DIRECTORY}/unit/double-barrel-tank/turret.png");
+        let turret_sheet = assets
+            .get(&turret_path)
+            .unwrap_or_else(|| panic!("tank turret sheet not loaded: {turret_path}"));
+        let turret = UnitRenderer::new(
+            &gpu.device,
+            &gpu.queue,
+            gpu.config.format,
+            turret_sheet,
+            62.0,
+            42.0,
+            &world_state.camera,
+        );
+
         self.state = State::Running(Box::new(Running {
             window,
             gpu,
             assets,
             renderer,
+            unit,
+            turret,
             state: world_state,
             input: Input::default(),
             hud,
+            unit_anim_start: Instant::now(),
         }));
     }
 
@@ -160,6 +194,12 @@ impl ApplicationHandler for Gui {
                     running
                         .renderer
                         .set_camera(&running.gpu.queue, &running.state.camera);
+                    running
+                        .unit
+                        .set_camera(&running.gpu.queue, &running.state.camera);
+                    running
+                        .turret
+                        .set_camera(&running.gpu.queue, &running.state.camera);
                 }
             }
 
@@ -195,13 +235,44 @@ impl ApplicationHandler for Gui {
                 running
                     .hud
                     .set_marquee(&running.gpu.queue, running.state.selection.marquee.as_ref());
-                running.gpu.render(&running.renderer, &running.hud);
+
+                // Animate: cycle 8 evenly-spaced facings at 4 fps at the world's center.
+                let total = running.unit.total_frames().max(1);
+                let stride = (total / 8).max(1);
+                let elapsed = now.duration_since(running.unit_anim_start).as_secs_f32();
+                let dir = ((elapsed * 1.5) as u32) % 8;
+                let frame = (dir * stride) % total;
+                let bounds = running.state.map.world_bounds();
+                let center = bounds.center();
+                running.unit.set_single(&running.gpu.queue, center, frame);
+
+                let turret_total = running.turret.total_frames().max(1);
+                let turret_stride = (turret_total / 8).max(1);
+                let turret_frame = (dir * turret_stride) % turret_total;
+                running
+                    .turret
+                    .set_single(&running.gpu.queue, center, turret_frame);
+
+                running.gpu.render(
+                    &running.renderer,
+                    &running.unit,
+                    &running.turret,
+                    &running.hud,
+                );
             }
 
             other => match running.input.handle(&other, &mut running.state) {
-                Some(InputEventSideEffect::UpdateCamera) => running
-                    .renderer
-                    .set_camera(&running.gpu.queue, &running.state.camera),
+                Some(InputEventSideEffect::UpdateCamera) => {
+                    running
+                        .renderer
+                        .set_camera(&running.gpu.queue, &running.state.camera);
+                    running
+                        .unit
+                        .set_camera(&running.gpu.queue, &running.state.camera);
+                    running
+                        .turret
+                        .set_camera(&running.gpu.queue, &running.state.camera);
+                }
                 Some(InputEventSideEffect::ClickLeft(p))
                 | Some(InputEventSideEffect::ClickRight(p)) => eprintln!("click {p:?}"),
                 None => {}
