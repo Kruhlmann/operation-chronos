@@ -1,9 +1,10 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::{Gpu, HudRenderer, SpriteRenderer, WorldRenderer};
+use crate::{Gpu, HudRenderer, WorldRenderer};
 use game::constants::{
     ASSET_DIRECTORY, FRAME_TIME, SPRITE_SHEET_COLUMNS, SPRITE_SHEET_PATH, SPRITE_SHEET_ROWS,
+    SPRITE_SIZE_PIXELS,
 };
 
 use winit::{
@@ -19,7 +20,6 @@ pub struct Running {
     pub assets: game::GpuAssets,
     pub world: WorldRenderer,
     pub camera: game::Camera,
-    pub sprite_renderer: SpriteRenderer,
     pub hud: HudRenderer,
 }
 
@@ -81,18 +81,6 @@ impl ApplicationHandler for Gui {
             .get(&sprite_sheet_path)
             .unwrap_or_else(|| panic!("sprite sheet not loaded: {sprite_sheet_path}"));
 
-        let aspect = gpu.config.width as f32 / gpu.config.height as f32;
-        let mut sprite_renderer = SpriteRenderer::new(
-            &gpu.device,
-            gpu.config.format,
-            sprite_sheet,
-            SPRITE_SHEET_COLUMNS,
-            SPRITE_SHEET_ROWS,
-            aspect,
-        );
-        // Upload the initial uniform (draws sprite index 0).
-        sprite_renderer.set_sprite_index(&gpu.queue, 0);
-
         let surface_size = [gpu.config.width as f32, gpu.config.height as f32];
         let mut hud = HudRenderer::new(
             &gpu.device,
@@ -104,8 +92,14 @@ impl ApplicationHandler for Gui {
         hud.set_text(&gpu.queue, "FPS: 0", [8.0, 8.0]);
 
         // Build the world renderer and a placeholder map until the real world
-        // exists. Camera is an identity/orthographic stub for now.
-        let camera = game::Camera::new(64.0, surface_size);
+        // exists.
+        let map = placeholder_map();
+
+        // Center the camera on the middle of the map (in world-pixel space).
+        let mut camera = game::Camera::new(surface_size);
+        let mid = game::Map::tile_to_world(map.width / 2, map.height / 2);
+        camera.set_center(mid);
+
         let mut world = WorldRenderer::new(
             &gpu.device,
             &gpu.queue,
@@ -113,9 +107,9 @@ impl ApplicationHandler for Gui {
             sprite_sheet,
             SPRITE_SHEET_COLUMNS,
             SPRITE_SHEET_ROWS,
+            SPRITE_SIZE_PIXELS as f32,
             &camera,
         );
-        let map = placeholder_map();
         world.set_map(&gpu.queue, &map);
 
         self.state = State::Running(Running {
@@ -124,7 +118,6 @@ impl ApplicationHandler for Gui {
             assets,
             world,
             camera,
-            sprite_renderer,
             hud,
         });
     }
@@ -170,10 +163,6 @@ impl ApplicationHandler for Gui {
                 };
                 running.gpu.resize(size.width, size.height);
                 if size.height > 0 {
-                    let aspect = size.width as f32 / size.height as f32;
-                    running
-                        .sprite_renderer
-                        .set_aspect(&running.gpu.queue, aspect);
                     running.hud.set_surface_size(
                         &running.gpu.queue,
                         [size.width as f32, size.height as f32],
@@ -223,9 +212,7 @@ impl ApplicationHandler for Gui {
                     let text = format!("FPS: {fps:.0}  {frame_ms:.2} MS");
                     running.hud.set_text(&running.gpu.queue, &text, [8.0, 8.0]);
                 }
-                running
-                    .gpu
-                    .render(&running.world, &running.sprite_renderer, &running.hud);
+                running.gpu.render(&running.world, &running.hud);
             }
 
             _ => {}
@@ -242,12 +229,14 @@ impl Gui {
 }
 
 /// Temporary map used until the real world is implemented: a small grid of
-/// grass tiles.
+/// grass tiles cycling through the three grass top variants.
 fn placeholder_map() -> game::Map {
     let width: u16 = 8;
     let height: u16 = 6;
     let tiles = (0..(width as usize * height as usize))
-        .map(|_| game::Tile::Grass)
+        .map(|i| game::Tile::Grass {
+            variant: (i % 3) as u8,
+        })
         .collect();
     game::Map {
         width,

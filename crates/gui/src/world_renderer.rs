@@ -11,25 +11,24 @@ struct CameraUniform {
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct SheetUniform {
-    // x = columns, y = rows, zw = padding.
+    // x = columns, y = rows, z = sprite pixel size, w = padding.
     params: [f32; 4],
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct TileInstance {
-    // xy = tile position, z = sprite index, w = unused.
+    // xy = world-pixel anchor, z = sprite index, w = unused.
     data: [f32; 4],
 }
 
-/// Draws the world as a grid of instanced tile quads, transformed by a camera
-/// view-projection matrix.
 pub struct WorldRenderer {
     pipeline: wgpu::RenderPipeline,
     bind_group: wgpu::BindGroup,
     camera_buffer: wgpu::Buffer,
     instance_buffer: wgpu::Buffer,
     instance_count: u32,
+    sprite_size: f32,
 }
 
 impl WorldRenderer {
@@ -40,6 +39,7 @@ impl WorldRenderer {
         sheet: &LoadedTexture,
         columns: u16,
         rows: u16,
+        sprite_size: f32,
         camera: &Camera,
     ) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -175,12 +175,11 @@ impl WorldRenderer {
             cache: None,
         });
 
-        // Upload static sheet dimensions and the initial camera.
         queue.write_buffer(
             &sheet_buffer,
             0,
             bytemuck::bytes_of(&SheetUniform {
-                params: [columns as f32, rows as f32, 0.0, 0.0],
+                params: [columns as f32, rows as f32, sprite_size, 0.0],
             }),
         );
 
@@ -190,12 +189,12 @@ impl WorldRenderer {
             camera_buffer,
             instance_buffer,
             instance_count: 0,
+            sprite_size,
         };
         renderer.set_camera(queue, camera);
         renderer
     }
 
-    /// Update the camera view-projection matrix.
     pub fn set_camera(&self, queue: &wgpu::Queue, camera: &Camera) {
         let uniform = CameraUniform {
             view_projection: camera.view_projection(),
@@ -203,13 +202,15 @@ impl WorldRenderer {
         queue.write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&uniform));
     }
 
-    /// Rebuild the tile instances from a map. Call only when the map changes,
-    /// not every frame.
     pub fn set_map(&mut self, queue: &wgpu::Queue, map: &Map) {
-        let mut instances: Vec<TileInstance> = Vec::new();
-        for (x, y, sprite) in map.drawable_tiles() {
+        let placements = map.placements();
+        let half = self.sprite_size * 0.5;
+
+        let mut instances: Vec<TileInstance> = Vec::with_capacity(placements.len());
+        for p in placements {
+            let anchor = [p.world_pos[0] - half, p.world_pos[1]];
             instances.push(TileInstance {
-                data: [x as f32, y as f32, sprite as f32, 0.0],
+                data: [anchor[0], anchor[1], p.sprite_index as f32, 0.0],
             });
             if instances.len() as u64 >= MAX_TILES {
                 break;

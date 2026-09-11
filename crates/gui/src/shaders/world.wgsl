@@ -1,13 +1,13 @@
-// World tiles: draws one instanced quad per drawable tile.
-// Each instance carries its tile position and sprite index; a camera
-// view-projection matrix maps tile space to clip space.
+// World tiles: draws one instanced quad per drawable tile, in world-pixel
+// space. Each instance carries its world position and sprite index; a camera
+// view-projection matrix maps world pixels to clip space.
 
 struct Camera {
     view_projection: mat4x4<f32>,
 };
 
 struct Sheet {
-    // x = columns, y = rows in the sprite sheet.
+    // x = columns, y = rows in the sprite sheet, z = sprite pixel size.
     params: vec4<f32>,
 };
 
@@ -17,7 +17,7 @@ struct Sheet {
 @group(0) @binding(3) var<uniform> sheet: Sheet;
 
 struct Instance {
-    // xy = tile position (tile coords), z = sprite index, w = unused.
+    // xy = world-pixel position (anchor), z = sprite index, w = unused.
     @location(0) data: vec4<f32>,
 };
 
@@ -37,17 +37,19 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32, instance: Instance) -> VsOu
         vec2<f32>(0.0, 1.0),
     );
 
+    let columns = sheet.params.x;
+    let rows = sheet.params.y;
+    let sprite_size = sheet.params.z;
+
     let corner = corners[vertex_index];
-    let tile_pos = instance.data.xy;
+    let anchor = instance.data.xy;
     let sprite_index = instance.data.z;
 
-    // World/tile-space position of this vertex (one tile unit per tile).
-    let world = tile_pos + corner;
+    // World-pixel position of this vertex, then to clip space via the camera.
+    let world = anchor + corner * sprite_size;
     let clip = camera.view_projection * vec4<f32>(world, 0.0, 1.0);
 
     // Select the sprite cell within the sheet.
-    let columns = sheet.params.x;
-    let rows = sheet.params.y;
     let col = floor(sprite_index % columns);
     let row = floor(sprite_index / columns);
     let cell = vec2<f32>(1.0 / columns, 1.0 / rows);

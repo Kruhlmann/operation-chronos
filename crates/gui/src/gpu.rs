@@ -57,12 +57,7 @@ impl Gpu {
         self.surface.configure(&self.device, &self.config);
     }
 
-    pub fn render(
-        &mut self,
-        world: &crate::WorldRenderer,
-        sprite_renderer: &crate::SpriteRenderer,
-        hud: &crate::HudRenderer,
-    ) {
+    pub fn render(&mut self, world: &crate::WorldRenderer, hud: &crate::HudRenderer) {
         let frame = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(frame) => frame,
             wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,
@@ -111,7 +106,6 @@ impl Gpu {
             });
 
             world.draw(&mut render_pass);
-            sprite_renderer.draw(&mut render_pass);
             hud.draw(&mut render_pass);
         }
 
