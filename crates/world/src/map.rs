@@ -35,7 +35,6 @@ impl WorldBounds {
 }
 
 pub struct TilePlacement {
-    /// World-pixel position of the layer's anchor.
     pub world_pos: [f32; 2],
     pub sprite_index: u16,
 }
@@ -81,9 +80,8 @@ impl Map {
         for (i, tile) in self.tiles.iter().enumerate() {
             let x = (i as u16) % self.width;
             let y = (i as u16) / self.width;
-            let world_pos = Self::tile_to_world(x, y);
-            // Depth key: larger x+y is drawn later (in front).
             let depth = x + y;
+            let world_pos = Self::tile_to_world(x, y);
 
             for (layer, sprite_index) in tile.sprite_layers().into_iter().enumerate() {
                 out.push((

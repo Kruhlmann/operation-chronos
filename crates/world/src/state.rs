@@ -1,12 +1,18 @@
+use glam::Vec2;
+
+use crate::camera::Camera;
 use crate::constants::{DEFAULT_MAP_HEIGHT, DEFAULT_MAP_WIDTH};
-use crate::sim::camera::Camera;
-use crate::sim::map::{Map, Tile};
-use crate::sim::selection::{Marquee, Selection};
+use crate::entity::UnitKind;
+use crate::geometry::{Facing, Position};
+use crate::map::{Map, Tile};
+use crate::selection::{Marquee, Selection};
 
 pub struct World {
     pub map: Map,
     pub camera: Camera,
     pub selection: Selection,
+    pub ecs: hecs::World,
+    time: f32,
 }
 
 impl World {
@@ -19,6 +25,8 @@ impl World {
             map,
             camera,
             selection: Selection::default(),
+            ecs: hecs::World::new(),
+            time: 0.0,
         }
     }
 
@@ -35,7 +43,33 @@ impl World {
             height,
             tiles,
         };
-        Self::new(map, viewport)
+        let mut world = Self::new(map, viewport);
+        world.spawn_placeholder_tanks();
+        world
+    }
+
+    /// Spawn a small demo formation of tanks at the map center.
+    fn spawn_placeholder_tanks(&mut self) {
+        let center = self.map.world_bounds().center();
+        let base = Vec2::new(center[0], center[1]);
+        let spacing = 96.0;
+        for i in -1..=1_i32 {
+            let pos = base + Vec2::new(i as f32 * spacing, 0.0);
+            self.spawn_tank(pos);
+        }
+    }
+
+    pub fn spawn_tank(&mut self, pos: Vec2) -> hecs::Entity {
+        self.ecs.spawn((Position(pos), Facing(0.0), UnitKind::Tank))
+    }
+
+    pub fn tick(&mut self, dt: f32) {
+        self.time += dt;
+        // Placeholder animation: rotate every entity slowly so we can see
+        // multiple facings on all sprite parts driven from `Facing`.
+        for (_, facing) in self.ecs.query_mut::<&mut Facing>() {
+            facing.0 = self.time * 1.5;
+        }
     }
 
     pub fn resize(&mut self, viewport: [f32; 2]) {

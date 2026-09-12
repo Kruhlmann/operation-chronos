@@ -227,6 +227,23 @@ impl UnitRenderer {
         self.instance_count = 1;
     }
 
+    /// Upload N unit instances. Each `(center, frame)` becomes one draw.
+    pub fn set_instances(&mut self, queue: &wgpu::Queue, items: &[(glam::Vec2, u32)]) {
+        let hw = self.frame_width * 0.5;
+        let hh = self.frame_height * 0.5;
+        let capped = items.len().min(MAX_UNITS as usize);
+        let mut buf: Vec<UnitInstance> = Vec::with_capacity(capped);
+        for &(pos, frame) in items.iter().take(capped) {
+            buf.push(UnitInstance {
+                data: [pos.x - hw, pos.y - hh, frame as f32, 0.0],
+            });
+        }
+        self.instance_count = buf.len() as u32;
+        if !buf.is_empty() {
+            queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&buf));
+        }
+    }
+
     pub fn draw(&self, render_pass: &mut wgpu::RenderPass<'_>) {
         if self.instance_count == 0 {
             return;

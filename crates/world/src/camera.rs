@@ -1,5 +1,5 @@
 use crate::constants::{CAMERA_MAX_ZOOM, CAMERA_MIN_ZOOM};
-use crate::sim::map::WorldBounds;
+use crate::map::WorldBounds;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Camera {

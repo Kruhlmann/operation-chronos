@@ -44,3 +44,4 @@ pub const DEBUG_PRAGMA: &str = "\
     wgpu_hal::vulkan::instance=error,\
     debug";
 pub const FRAME_TIME: Duration = Duration::from_nanos(1_000_000_000 / 60);
+pub const TICK_TIME_SECONDS: f32 = 1.0 / 60.0;

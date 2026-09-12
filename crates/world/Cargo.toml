@@ -6,6 +6,8 @@ license.workspace = true
 publish = false
 
 [dependencies]
+glam.workspace = true
+hecs.workspace = true
 wgpu.workspace = true
 image.workspace = true
 tracing.workspace = true
