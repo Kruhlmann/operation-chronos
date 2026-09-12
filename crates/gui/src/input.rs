@@ -1,5 +1,9 @@
-use world::constants::CAMERA_ZOOM_STEP;
-use world::{World, constants::PAN_DRAG_TOLERANCE};
+use std::time::Instant;
+
+use world::World;
+use world::constants::{
+    CAMERA_ZOOM_STEP, PAN_DRAG_CLICK_TIME, PAN_DRAG_CLICK_TOLERANCE, PAN_DRAG_TOLERANCE,
+};
 
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 
@@ -24,6 +28,7 @@ struct Drag {
     origin: [f32; 2],
     last_pos: [f32; 2],
     active: bool,
+    pressed_at: Instant,
 }
 
 impl Drag {
@@ -32,15 +37,29 @@ impl Drag {
             origin: pos,
             last_pos: pos,
             active: false,
+            pressed_at: Instant::now(),
         }
+    }
+
+    fn manhatten_travel_distance(&self, pos: [f32; 2]) -> f32 {
+        (pos[0] - self.origin[0]).abs() + (pos[1] - self.origin[1]).abs()
+    }
+
+    fn in_click_grace(&self, pos: [f32; 2]) -> bool {
+        self.pressed_at.elapsed().as_secs_f32() < PAN_DRAG_CLICK_TIME
+            && self.manhatten_travel_distance(pos) < PAN_DRAG_CLICK_TOLERANCE
     }
 
     fn update(&mut self, pos: [f32; 2]) -> Option<[f32; 2]> {
         let delta = [pos[0] - self.last_pos[0], pos[1] - self.last_pos[1]];
         self.last_pos = pos;
         if !self.active {
-            let travel = (pos[0] - self.origin[0]).abs() + (pos[1] - self.origin[1]).abs();
-            if travel < PAN_DRAG_TOLERANCE {
+            // Never activate drag inside the grace window; a quick release
+            // there always wins as a click.
+            if self.in_click_grace(pos) {
+                return None;
+            }
+            if self.manhatten_travel_distance(pos) < PAN_DRAG_TOLERANCE {
                 return None;
             }
             self.active = true;
@@ -95,13 +114,19 @@ impl Input {
                 match &self.active {
                     Some(a) if a.button == released => {
                         let a = self.active.take().unwrap();
+                        // Grace window forces a click regardless of drag state.
+                        let click_wins = a.drag.in_click_grace(self.cursor);
                         match a.button {
+                            Button::Left if click_wins => {
+                                world.clear_marquee();
+                                Some(InputEventSideEffect::ClickLeft(self.cursor))
+                            }
                             Button::Left if a.drag.active => {
                                 world.commit_marquee();
                                 None
                             }
                             Button::Left => Some(InputEventSideEffect::ClickLeft(self.cursor)),
-                            Button::Right if !a.drag.active => {
+                            Button::Right if click_wins || !a.drag.active => {
                                 Some(InputEventSideEffect::ClickRight(self.cursor))
                             }
                             Button::Right => None,

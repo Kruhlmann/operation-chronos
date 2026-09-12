@@ -3,4 +3,6 @@ lazy_static::lazy_static! {
     pub static ref HUD_RECT: &'static str = include_str!("hud_rect.wgsl");
     pub static ref WORLD: &'static str = include_str!("world.wgsl");
     pub static ref UNIT: &'static str = include_str!("unit.wgsl");
+    pub static ref SELECTION: &'static str = include_str!("selection.wgsl");
+    pub static ref LINE: &'static str = include_str!("line.wgsl");
 }

@@ -30,7 +30,10 @@ pub const CAMERA_MAX_ZOOM: f32 = 4.0;
 pub const CAMERA_ZOOM_STEP: f32 = 0.1;
 
 // Pixel tolerance for when to transition from considering mouse down a "Click" versus a "Drag"
-pub const PAN_DRAG_TOLERANCE: f32 = 8.0;
+pub const PAN_DRAG_TOLERANCE: f32 = 12.0;
+pub const PAN_DRAG_CLICK_TIME_SECONDS: f32 = 0.2;
+pub const PAN_DRAG_CLICK_TOLERANCE_PIXELS: f32 = 16.0;
+pub const MOVE_ORDER_MARKER_TIME_SECONDS: f32 = 0.6;
 
 pub const FONT_GLYPH_SIZE: u32 = 8;
 pub const FONT_MAX_CHARACTERS: usize = 256;

@@ -1,3 +1,7 @@
+use glam::Vec2;
+
+use crate::geometry::Position;
+
 pub type EntityId = u64;
 
 #[derive(Clone, Copy, Debug)]
@@ -25,5 +29,15 @@ impl Marquee {
 #[derive(Default)]
 pub struct Selection {
     pub marquee: Option<Marquee>,
-    pub selected: Vec<EntityId>,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct Selected;
+
+pub fn point_hits(pos: &Position, world_point: Vec2, radius: f32) -> bool {
+    pos.0.distance_squared(world_point) <= radius * radius
+}
+
+pub fn aabb_contains(min: Vec2, max: Vec2, pos: &Position) -> bool {
+    pos.0.x >= min.x && pos.0.x <= max.x && pos.0.y >= min.y && pos.0.y <= max.y
 }

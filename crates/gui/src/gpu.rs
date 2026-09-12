@@ -60,7 +60,9 @@ impl Gpu {
     pub fn render(
         &mut self,
         world: &crate::WorldRenderer,
+        selection: &crate::SelectionRenderer,
         units: &crate::UnitScene,
+        lines: &crate::LineRenderer,
         hud: &crate::HudRenderer,
     ) {
         let frame = match self.surface.get_current_texture() {
@@ -111,7 +113,9 @@ impl Gpu {
             });
 
             world.draw(&mut render_pass);
+            selection.draw(&mut render_pass);
             units.draw(&mut render_pass);
+            lines.draw(&mut render_pass);
             hud.draw(&mut render_pass);
         }
 

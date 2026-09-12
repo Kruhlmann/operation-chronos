@@ -1,7 +1,10 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::{Gpu, HudRenderer, Input, InputEventSideEffect, SheetId, UnitScene, WorldRenderer};
+use crate::{
+    Gpu, HudRenderer, Input, InputEventSideEffect, LineRenderer, SelectionRenderer, SheetId,
+    UnitScene, WorldRenderer,
+};
 use world::constants::{
     ASSET_DIRECTORY, FRAME_TIME, SPRITE_SHEET_COLUMNS, SPRITE_SHEET_PATH, SPRITE_SHEET_ROWS,
     SPRITE_SIZE_PIXELS, TICK_TIME_SECONDS,
@@ -20,6 +23,8 @@ pub struct Running {
     pub assets: world::GpuAssets,
     pub renderer: WorldRenderer,
     pub units: UnitScene,
+    pub selection: SelectionRenderer,
+    pub lines: LineRenderer,
     pub state: world::World,
     pub input: Input,
     pub hud: HudRenderer,
@@ -118,12 +123,28 @@ impl ApplicationHandler for Gui {
             SheetId::ALL,
         );
 
+        let selection = SelectionRenderer::new(
+            &gpu.device,
+            &gpu.queue,
+            gpu.config.format,
+            &world_state.camera,
+        );
+
+        let lines = LineRenderer::new(
+            &gpu.device,
+            &gpu.queue,
+            gpu.config.format,
+            &world_state.camera,
+        );
+
         self.state = State::Running(Box::new(Running {
             window,
             gpu,
             assets,
             renderer,
             units,
+            selection,
+            lines,
             state: world_state,
             input: Input::default(),
             hud,
@@ -225,9 +246,32 @@ impl ApplicationHandler for Gui {
                 running
                     .units
                     .refresh(&running.gpu.queue, &running.state.ecs);
+                refresh_selection_markers(
+                    &mut running.selection,
+                    &running.gpu.queue,
+                    &running.state.ecs,
+                );
+                refresh_move_lines(&mut running.lines, &running.gpu.queue, &running.state.ecs);
+                // Keep all world-space renderers' camera uniforms in sync.
                 running
-                    .gpu
-                    .render(&running.renderer, &running.units, &running.hud);
+                    .selection
+                    .set_camera(&running.gpu.queue, &running.state.camera);
+                running
+                    .lines
+                    .set_camera(&running.gpu.queue, &running.state.camera);
+                running
+                    .units
+                    .set_camera(&running.gpu.queue, &running.state.camera);
+                running
+                    .renderer
+                    .set_camera(&running.gpu.queue, &running.state.camera);
+                running.gpu.render(
+                    &running.renderer,
+                    &running.selection,
+                    &running.units,
+                    &running.lines,
+                    &running.hud,
+                );
             }
 
             other => match running.input.handle(&other, &mut running.state) {
@@ -238,9 +282,15 @@ impl ApplicationHandler for Gui {
                     running
                         .units
                         .set_camera(&running.gpu.queue, &running.state.camera);
+                    running
+                        .selection
+                        .set_camera(&running.gpu.queue, &running.state.camera);
+                    running
+                        .lines
+                        .set_camera(&running.gpu.queue, &running.state.camera);
                 }
-                Some(InputEventSideEffect::ClickLeft(p))
-                | Some(InputEventSideEffect::ClickRight(p)) => eprintln!("click {p:?}"),
+                Some(InputEventSideEffect::ClickLeft(p)) => running.state.click_select(p),
+                Some(InputEventSideEffect::ClickRight(p)) => running.state.click_order(p),
                 None => {}
             },
         }
@@ -254,4 +304,34 @@ impl Gui {
         event_loop.run_app(self).map_err(|_| ())?;
         Ok(())
     }
+}
+
+/// Team color placeholder (no team ownership yet): faint red.
+const TEAM_COLOR_PLACEHOLDER: [f32; 4] = [1.0, 0.15, 0.15, 0.45];
+const SELECTION_RADIUS: f32 = 20.0;
+
+fn refresh_selection_markers(
+    renderer: &mut SelectionRenderer,
+    queue: &wgpu::Queue,
+    ecs: &hecs::World,
+) {
+    let mut items: Vec<(glam::Vec2, f32, [f32; 4])> = Vec::new();
+    for (_e, (pos, _sel)) in ecs
+        .query::<(&world::geometry::Position, &world::selection::Selected)>()
+        .iter()
+    {
+        items.push((pos.0, SELECTION_RADIUS, TEAM_COLOR_PLACEHOLDER));
+    }
+    renderer.set_markers(queue, &items);
+}
+
+fn refresh_move_lines(renderer: &mut LineRenderer, queue: &wgpu::Queue, ecs: &hecs::World) {
+    let mut segments: Vec<(glam::Vec2, glam::Vec2, [f32; 4])> = Vec::new();
+    for (_e, m) in ecs.query::<&world::order::MoveMarker>().iter() {
+        let Ok(pos) = ecs.get::<&world::geometry::Position>(m.unit) else {
+            continue;
+        };
+        segments.push((pos.0, m.to, [0.1, 0.95, 0.2, 1.0]));
+    }
+    renderer.set_segments(queue, &segments);
 }
