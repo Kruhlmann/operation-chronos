@@ -63,6 +63,7 @@ impl Gpu {
         selection: &crate::SelectionRenderer,
         units: &crate::UnitScene,
         lines: &crate::LineRenderer,
+        debug_lines: Option<&crate::LineRenderer>,
         hud: &crate::HudRenderer,
     ) {
         let frame = match self.surface.get_current_texture() {
@@ -116,6 +117,9 @@ impl Gpu {
             selection.draw(&mut render_pass);
             units.draw(&mut render_pass);
             lines.draw(&mut render_pass);
+            if let Some(dl) = debug_lines {
+                dl.draw(&mut render_pass);
+            }
             hud.draw(&mut render_pass);
         }
 

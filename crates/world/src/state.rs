@@ -4,13 +4,14 @@ use glam::Vec2;
 use crate::camera::Camera;
 use crate::constants::{DEFAULT_MAP_HEIGHT, DEFAULT_MAP_WIDTH, ORDER_MARKER_RENDER_DURATION};
 use crate::entity::UnitKind;
-use crate::geometry::{Facing, Position};
+use crate::geometry::{Facing, Footprint, Position};
 use crate::map::{Map, Tile};
 use crate::order::{MoveMarker, Speed, UnitOrder};
 use crate::selection::{Marquee, Selected, Selection, aabb_contains, point_hits};
 
 const UNIT_PICK_RADIUS: f32 = 32.0;
 const TANK_SPEED: f32 = 120.0;
+const TANK_FOOTPRINT: f32 = 0.7;
 
 pub struct World {
     pub map: Map,
@@ -65,7 +66,34 @@ impl World {
         let spacing = 96.0;
         for i in -1..=1_i32 {
             let pos = base + Vec2::new(i as f32 * spacing, 0.0);
+            self.clear_footprint_area(pos, TANK_FOOTPRINT);
             self.spawn_tank(pos);
+        }
+    }
+
+    /// Convert any impassable tiles overlapping the given diamond footprint to grass.
+    fn clear_footprint_area(&mut self, center: Vec2, tiles: f32) {
+        use crate::constants::{ISO_TILE_HALF_HEIGHT, ISO_TILE_HALF_WIDTH};
+        let hw = tiles * ISO_TILE_HALF_WIDTH;
+        let hh = tiles * ISO_TILE_HALF_HEIGHT;
+        let probes = [
+            center,
+            center + Vec2::new(-hw, 0.0),
+            center + Vec2::new(hw, 0.0),
+            center + Vec2::new(0.0, -hh),
+            center + Vec2::new(0.0, hh),
+        ];
+        for c in probes {
+            let (tx, ty) = Map::world_to_tile(c);
+            if tx < 0 || ty < 0 || tx >= self.map.width as i32 || ty >= self.map.height as i32 {
+                continue;
+            }
+            let idx = ty as usize * self.map.width as usize + tx as usize;
+            if let Some(t) = self.map.tiles.get_mut(idx) {
+                if !t.passable() {
+                    *t = Tile::Grass { variant: 0 };
+                }
+            }
         }
     }
 
@@ -75,6 +103,7 @@ impl World {
             Facing(0.0),
             UnitKind::Tank,
             Speed(TANK_SPEED),
+            Footprint(TANK_FOOTPRINT),
         ))
     }
 
@@ -99,9 +128,9 @@ impl World {
     fn run_movement(&mut self, dt: Duration) {
         let dt_s = dt.as_secs_f32();
         let mut arrived: Vec<hecs::Entity> = Vec::new();
-        for (e, (pos, facing, speed, order)) in
+        for (e, (pos, facing, speed, footprint, order)) in
             self.ecs
-                .query_mut::<(&mut Position, &mut Facing, &Speed, &UnitOrder)>()
+                .query_mut::<(&mut Position, &mut Facing, &Speed, &Footprint, &UnitOrder)>()
         {
             let UnitOrder::Move(target) = *order;
             let to = target - pos.0;
@@ -112,7 +141,25 @@ impl World {
             }
             facing.0 = to.y.atan2(to.x);
             let step = (speed.0 * dt_s).min(dist);
-            pos.0 += to / dist * step;
+            let delta = to / dist * step;
+            let side = footprint.0;
+            let full = pos.0 + delta;
+            if self.map.is_area_passable(full, side) {
+                pos.0 = full;
+            } else {
+                let slide_x = pos.0 + Vec2::new(delta.x, 0.0);
+                let slide_y = pos.0 + Vec2::new(0.0, delta.y);
+                let ok_x = delta.x != 0.0 && self.map.is_area_passable(slide_x, side);
+                let ok_y = delta.y != 0.0 && self.map.is_area_passable(slide_y, side);
+                if ok_x {
+                    pos.0 = slide_x;
+                } else if ok_y {
+                    pos.0 = slide_y;
+                } else {
+                    arrived.push(e);
+                    continue;
+                }
+            }
             if step >= dist {
                 arrived.push(e);
             }

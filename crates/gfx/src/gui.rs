@@ -12,8 +12,9 @@ use world::constants::{
 
 use winit::{
     application::ApplicationHandler,
-    event::WindowEvent,
+    event::{ElementState, KeyEvent, WindowEvent},
     event_loop::{ActiveEventLoop, EventLoop},
+    keyboard::{KeyCode, PhysicalKey},
     window::{Window, WindowId},
 };
 
@@ -25,6 +26,8 @@ pub struct Running {
     pub units: UnitScene,
     pub selection: SelectionRenderer,
     pub lines: LineRenderer,
+    pub debug_lines: LineRenderer,
+    pub debug_overlay: bool,
     pub state: world::World,
     pub input: Input,
     pub hud: HudRenderer,
@@ -137,6 +140,13 @@ impl ApplicationHandler for Gui {
             &world_state.camera,
         );
 
+        let debug_lines = LineRenderer::new(
+            &gpu.device,
+            &gpu.queue,
+            gpu.config.format,
+            &world_state.camera,
+        );
+
         self.state = State::Running(Box::new(Running {
             window,
             gpu,
@@ -145,6 +155,8 @@ impl ApplicationHandler for Gui {
             units,
             selection,
             lines,
+            debug_lines,
+            debug_overlay: false,
             state: world_state,
             input: Input::default(),
             hud,
@@ -253,11 +265,23 @@ impl ApplicationHandler for Gui {
                     &running.state.ecs,
                 );
                 refresh_move_lines(&mut running.lines, &running.gpu.queue, &running.state.ecs);
+                if running.debug_overlay {
+                    refresh_debug_overlay(
+                        &mut running.debug_lines,
+                        &running.gpu.queue,
+                        &running.state,
+                    );
+                } else {
+                    running.debug_lines.set_segments(&running.gpu.queue, &[]);
+                }
                 running
                     .selection
                     .set_camera(&running.gpu.queue, &running.state.camera);
                 running
                     .lines
+                    .set_camera(&running.gpu.queue, &running.state.camera);
+                running
+                    .debug_lines
                     .set_camera(&running.gpu.queue, &running.state.camera);
                 running
                     .units
@@ -270,8 +294,26 @@ impl ApplicationHandler for Gui {
                     &running.selection,
                     &running.units,
                     &running.lines,
+                    if running.debug_overlay {
+                        Some(&running.debug_lines)
+                    } else {
+                        None
+                    },
                     &running.hud,
                 );
+            }
+
+            WindowEvent::KeyboardInput {
+                event:
+                    KeyEvent {
+                        physical_key: PhysicalKey::Code(KeyCode::F3),
+                        state: ElementState::Pressed,
+                        repeat: false,
+                        ..
+                    },
+                ..
+            } => {
+                running.debug_overlay = !running.debug_overlay;
             }
 
             other => match running.input.handle(&other, &mut running.state) {
@@ -334,4 +376,49 @@ fn refresh_move_lines(renderer: &mut LineRenderer, queue: &wgpu::Queue, ecs: &he
         segments.push((pos.0, m.to, [0.1, 0.95, 0.2, 1.0]));
     }
     renderer.set_segments(queue, &segments);
+}
+
+const DEBUG_TILE_COLOR: [f32; 4] = [1.0, 0.2, 0.2, 0.9];
+const DEBUG_UNIT_COLOR: [f32; 4] = [0.2, 1.0, 0.4, 0.9];
+
+fn refresh_debug_overlay(renderer: &mut LineRenderer, queue: &wgpu::Queue, state: &world::World) {
+    use world::constants::{ISO_TILE_HALF_HEIGHT, ISO_TILE_HALF_WIDTH};
+    let mut segs: Vec<(glam::Vec2, glam::Vec2, [f32; 4])> = Vec::new();
+
+    // Diamond outline centered at `center` with tile-space size `tiles`.
+    let diamond = |center: glam::Vec2, tiles: f32, color: [f32; 4], out: &mut Vec<_>| {
+        let hw = tiles * ISO_TILE_HALF_WIDTH;
+        let hh = tiles * ISO_TILE_HALF_HEIGHT;
+        let top = center + glam::Vec2::new(0.0, -hh);
+        let right = center + glam::Vec2::new(hw, 0.0);
+        let bottom = center + glam::Vec2::new(0.0, hh);
+        let left = center + glam::Vec2::new(-hw, 0.0);
+        out.push((top, right, color));
+        out.push((right, bottom, color));
+        out.push((bottom, left, color));
+        out.push((left, top, color));
+    };
+
+    // Impassable tiles: outline of the tile itself (size = 1.0), centered at the diamond center.
+    for ty in 0..state.map.height as i32 {
+        for tx in 0..state.map.width as i32 {
+            if !state.map.is_passable(tx, ty) {
+                let [ax, ay] = world::Map::tile_to_world(tx as u16, ty as u16);
+                // tile_to_world returns the top vertex; center is one HALF_H below.
+                let center = glam::Vec2::new(ax, ay + ISO_TILE_HALF_HEIGHT);
+                diamond(center, 1.0, DEBUG_TILE_COLOR, &mut segs);
+            }
+        }
+    }
+
+    // Unit footprints: follow live positions exactly.
+    for (_e, (pos, fp)) in state
+        .ecs
+        .query::<(&world::geometry::Position, &world::geometry::Footprint)>()
+        .iter()
+    {
+        diamond(pos.0, fp.0, DEBUG_UNIT_COLOR, &mut segs);
+    }
+
+    renderer.set_segments(queue, &segs);
 }

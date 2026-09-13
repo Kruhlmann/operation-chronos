@@ -26,6 +26,9 @@ pub const MAX_WORLD_TILES: u64 = 65_536;
 pub const ISO_TILE_HALF_WIDTH: f32 = 32.0;
 pub const ISO_TILE_HALF_HEIGHT: f32 = 16.0;
 
+/// Pixel offset from a tile sprite cell's top-left to the painted diamond's top vertex.
+pub const TILE_SPRITE_ANCHOR: [f32; 2] = [31.0, 23.0];
+
 pub const CAMERA_MIN_ZOOM: f32 = 0.25;
 pub const CAMERA_MAX_ZOOM: f32 = 4.0;
 pub const CAMERA_ZOOM_STEP: f32 = 0.1;

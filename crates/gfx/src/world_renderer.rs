@@ -1,4 +1,5 @@
 use crate::LoadedTexture;
+use world::constants::TILE_SPRITE_ANCHOR;
 use world::{Camera, Map};
 
 const MAX_TILES: u64 = 65_536;
@@ -29,7 +30,6 @@ pub struct WorldRenderer {
     camera_buffer: wgpu::Buffer,
     instance_buffer: wgpu::Buffer,
     instance_count: u32,
-    sprite_size: f32,
 }
 
 impl WorldRenderer {
@@ -206,11 +206,13 @@ impl WorldRenderer {
 
     pub fn set_map(&mut self, queue: &wgpu::Queue, map: &Map) {
         let placements = map.placements();
-        let half = self.sprite_size * 0.5;
 
         let mut instances: Vec<TileInstance> = Vec::with_capacity(placements.len());
         for p in placements {
-            let anchor = [p.world_pos[0] - half, p.world_pos[1]];
+            let anchor = [
+                p.world_pos[0] - TILE_SPRITE_ANCHOR[0],
+                p.world_pos[1] - TILE_SPRITE_ANCHOR[1],
+            ];
             instances.push(TileInstance {
                 data: [anchor[0], anchor[1], p.sprite_index as f32, 0.0],
             });

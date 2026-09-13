@@ -1,3 +1,5 @@
+use glam::Vec2;
+
 use crate::constants::{
     GRASS_TOP_SPRITES, ISO_TILE_HALF_HEIGHT, ISO_TILE_HALF_WIDTH, ROCK_TOP_SPRITE, TILE_BASE_SPRITE,
 };
@@ -18,6 +20,10 @@ impl Tile {
             }
             Tile::Rock => vec![TILE_BASE_SPRITE, ROCK_TOP_SPRITE],
         }
+    }
+
+    pub fn is_passable(&self) -> bool {
+        matches!(self, Tile::Grass { .. })
     }
 }
 
@@ -55,6 +61,44 @@ impl Map {
             (fx - fy) * ISO_TILE_HALF_WIDTH,
             (fx + fy) * ISO_TILE_HALF_HEIGHT,
         ]
+    }
+
+    pub fn get_world_tile_at(p: Vec2) -> (i32, i32) {
+        //   ( (tx-ty)*HALF_W, (tx+ty)*HALF_H + HALF_H )
+        let a = p.x / ISO_TILE_HALF_WIDTH; //  tx - ty
+        let b = (p.y - ISO_TILE_HALF_HEIGHT) / ISO_TILE_HALF_HEIGHT; //  tx + ty
+        let fx = (a + b) * 0.5;
+        let fy = (b - a) * 0.5;
+        (fx.round() as i32, fy.round() as i32)
+    }
+
+    pub fn tile_at(&self, tx: i32, ty: i32) -> Option<&Tile> {
+        if tx < 0 || ty < 0 || tx >= self.width as i32 || ty >= self.height as i32 {
+            return None;
+        }
+        let idx = ty as usize * self.width as usize + tx as usize;
+        self.tiles.get(idx)
+    }
+
+    pub fn is_passable(&self, tx: i32, ty: i32) -> bool {
+        self.tile_at(tx, ty).map(Tile::is_passable).unwrap_or(false)
+    }
+
+    pub fn is_passable_world(&self, p: Vec2) -> bool {
+        let (tx, ty) = Self::get_world_tile_at(p);
+        self.is_passable(tx, ty)
+    }
+
+    pub fn is_area_passable(&self, center: Vec2, tiles: f32) -> bool {
+        let hw = tiles * ISO_TILE_HALF_WIDTH;
+        let hh = tiles * ISO_TILE_HALF_HEIGHT;
+        let corners = [
+            center + Vec2::new(-hw, 0.0),
+            center + Vec2::new(hw, 0.0),
+            center + Vec2::new(0.0, -hh),
+            center + Vec2::new(0.0, hh),
+        ];
+        corners.iter().all(|c| self.is_passable_world(*c))
     }
 
     pub fn world_bounds(&self) -> WorldBounds {
