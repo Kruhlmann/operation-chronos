@@ -26,6 +26,7 @@ impl AssetLibrary {
         let mut assets = HashSet::new();
         let dir = std::path::Path::new(path);
         Self::populate_assets(dir, &mut assets)?;
+        tracing::info!("found {} valid assets in {path:?}", assets.len());
         Ok(Self {
             assets,
             asset_directory: path.to_string(),
@@ -50,11 +51,7 @@ impl AssetLibrary {
                         assets.insert(Asset::Oog(path.to_string_lossy().to_string()));
                     }
                     p => {
-                        tracing::warn!(
-                            "Warning: Unsupported asset type {:?} for file {}",
-                            p,
-                            path.to_string_lossy()
-                        );
+                        tracing::warn!("Warning: Unsupported asset type {p:?} for file {path:?}",);
                     }
                 };
             }

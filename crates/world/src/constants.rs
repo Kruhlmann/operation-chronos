@@ -8,7 +8,7 @@ macro_rules! sprite_index {
 }
 
 pub const ASSET_DIRECTORY: &str = "res";
-pub const SPRITE_SHEET_PATH: &str = "sprites.png";
+pub const SPRITE_SHEET_PATH: &str = "world.png";
 pub const SPRITE_SHEET_COLUMNS: u16 = 16;
 pub const SPRITE_SHEET_ROWS: u16 = 16;
 pub const SPRITE_SIZE_PIXELS: u16 = 64;
@@ -45,6 +45,8 @@ pub const DEBUG_PRAGMA: &str = "\
     winit=info,\
     winit::platform_impl::linux::x11::xdisplay=error,\
     wgpu_hal::vulkan::instance=error,\
+    wgpu_hal::vulkan::adapter=warn,\
+    winit::platform_impl::linux::x11::window=warn,\
     debug";
 pub const FRAME_TIME: Duration = Duration::from_nanos(1_000_000_000 / 60);
 pub const TICK_TIME: Duration = Duration::from_nanos(1_000_000_000 / 60);
