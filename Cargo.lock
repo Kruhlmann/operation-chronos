@@ -3321,9 +3321,6 @@ version = "0.0.1"
 dependencies = [
  "glam",
  "hecs",
- "image",
- "tracing",
- "wgpu",
 ]
 
 [[package]]
