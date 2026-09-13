@@ -43,9 +43,8 @@ impl World {
         let height = DEFAULT_MAP_HEIGHT;
         let tiles = (0..(width as usize * height as usize))
             .map(|i| {
-                // Deterministic scatter of rocks (~8%) using a cheap hash.
                 let h = (i as u32).wrapping_mul(2_654_435_761);
-                if h % 12 == 0 {
+                if h.is_multiple_of(12) {
                     Tile::Rock
                 } else {
                     Tile::Grass {
@@ -90,10 +89,10 @@ impl World {
                 continue;
             }
             let idx = ty as usize * self.map.width as usize + tx as usize;
-            if let Some(t) = self.map.tiles.get_mut(idx) {
-                if !t.is_passable() {
-                    *t = Tile::Grass { variant: 0 };
-                }
+            if let Some(t) = self.map.tiles.get_mut(idx)
+                && !t.is_passable()
+            {
+                *t = Tile::Grass { variant: 0 };
             }
         }
     }
@@ -114,11 +113,7 @@ impl World {
         self.tick_markers(dt);
     }
 
-    /// O(N^2) circle-vs-circle push-apart. Reflects overlaps along the pair
-    /// normal, splitting the correction between both entities. Skips pushes
-    /// that would land a unit on impassable terrain.
     fn resolve_collisions(&mut self) {
-        // Snapshot mutable ids + fields so we can index by pair.
         let mut units: Vec<(hecs::Entity, Vec2, f32)> = self
             .ecs
             .query::<(&Position, &Footprint)>()
@@ -126,7 +121,6 @@ impl World {
             .map(|(e, (p, f))| (e, p.0, f.0))
             .collect();
 
-        // A few iterations converges stacked cases.
         for _ in 0..3 {
             let mut moved = false;
             for i in 0..units.len() {
@@ -143,7 +137,6 @@ impl World {
                     let (normal, overlap) = if dist > 1e-4 {
                         (d / dist, min_dist - dist)
                     } else {
-                        // Coincident: push along an arbitrary axis.
                         (Vec2::X, min_dist)
                     };
                     let push = normal * (overlap * 0.5);
@@ -164,7 +157,6 @@ impl World {
             }
         }
 
-        // Write back.
         for (e, pos, _) in units {
             if let Ok(mut p) = self.ecs.get::<&mut Position>(e) {
                 p.0 = pos;
@@ -195,7 +187,6 @@ impl World {
             &Footprint,
             &mut UnitOrder,
         )>() {
-            // Advance along waypoints; may consume multiple in one tick if step is large.
             let side = footprint.0;
             let mut remaining_step = speed.0 * dt_s;
             loop {
@@ -216,7 +207,6 @@ impl World {
                 if self.map.is_area_passable(full, side) {
                     pos.0 = full;
                 } else {
-                    // Blocked mid-path: drop the whole order.
                     done.push(e);
                     break;
                 }
@@ -311,9 +301,8 @@ impl World {
             let _ = self.ecs.despawn(e);
         }
 
-        // Snap the goal to nearest passable tile.
-        let goal_tile = Map::get_world_tile_at(target);
-        let goal = match pathfinding::nearest_passable(&self.map, goal_tile, 8) {
+        let nearest_goal_tile = Map::get_world_tile_at(target);
+        let goal = match pathfinding::nearest_passable(&self.map, nearest_goal_tile, 8) {
             Some(g) => g,
             None => return,
         };
@@ -354,12 +343,6 @@ impl World {
     }
 }
 
-/// Convert a tile path from A* into world-space waypoints.
-///
-/// - The first tile (the unit's current tile) is skipped so the unit doesn't
-///   backtrack to its own tile center.
-/// - The final waypoint is replaced with the exact `precise_goal` so the unit
-///   ends where the user clicked instead of snapping to the tile center.
 fn build_waypoints(start_pos: Vec2, tile_path: &[(i32, i32)], precise_goal: Vec2) -> Vec<Vec2> {
     let mut out: Vec<Vec2> = Vec::new();
     if tile_path.len() <= 1 {
@@ -368,14 +351,11 @@ fn build_waypoints(start_pos: Vec2, tile_path: &[(i32, i32)], precise_goal: Vec2
     }
     for &(tx, ty) in tile_path.iter().skip(1) {
         let [ax, ay] = Map::tile_to_world(tx as u16, ty as u16);
-        // Tile diamond center (tile_to_world returns the top vertex).
         out.push(Vec2::new(ax, ay + ISO_TILE_HALF_HEIGHT));
     }
-    // Snap the terminal waypoint to the exact click, if it stays passable.
     if let Some(last) = out.last_mut() {
         *last = precise_goal;
     }
-    // Silence unused-var warning when path degenerates.
     let _ = start_pos;
     out
 }
