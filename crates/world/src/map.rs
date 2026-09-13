@@ -89,16 +89,15 @@ impl Map {
         self.is_passable(tx, ty)
     }
 
-    pub fn is_area_passable(&self, center: Vec2, tiles: f32) -> bool {
-        let hw = tiles * ISO_TILE_HALF_WIDTH;
-        let hh = tiles * ISO_TILE_HALF_HEIGHT;
-        let corners = [
-            center + Vec2::new(-hw, 0.0),
-            center + Vec2::new(hw, 0.0),
-            center + Vec2::new(0.0, -hh),
-            center + Vec2::new(0.0, hh),
+    pub fn is_area_passable(&self, center: Vec2, radius: f32) -> bool {
+        let probes = [
+            center,
+            center + Vec2::new(-radius, 0.0),
+            center + Vec2::new(radius, 0.0),
+            center + Vec2::new(0.0, -radius),
+            center + Vec2::new(0.0, radius),
         ];
-        corners.iter().all(|c| self.is_passable_world(*c))
+        probes.iter().all(|c| self.is_passable_world(*c))
     }
 
     pub fn world_bounds(&self) -> WorldBounds {

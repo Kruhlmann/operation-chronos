@@ -3,8 +3,7 @@ use glam::Vec2;
 
 use crate::camera::Camera;
 use crate::constants::{
-    DEFAULT_MAP_HEIGHT, DEFAULT_MAP_WIDTH, ISO_TILE_HALF_HEIGHT, ISO_TILE_HALF_WIDTH,
-    ORDER_MARKER_RENDER_DURATION,
+    DEFAULT_MAP_HEIGHT, DEFAULT_MAP_WIDTH, ISO_TILE_HALF_HEIGHT, ORDER_MARKER_RENDER_DURATION,
 };
 use crate::entity::UnitKind;
 use crate::geometry::{Facing, Footprint, Position};
@@ -15,7 +14,8 @@ use crate::selection::{Marquee, Selected, Selection, aabb_contains, point_hits};
 
 const UNIT_PICK_RADIUS: f32 = 32.0;
 const TANK_SPEED: f32 = 120.0;
-const TANK_FOOTPRINT: f32 = 0.7;
+/// Collision/footprint radius in world pixels.
+const TANK_FOOTPRINT: f32 = 14.0;
 
 pub struct World {
     pub map: Map,
@@ -75,16 +75,14 @@ impl World {
         }
     }
 
-    /// Convert any impassable tiles overlapping the given diamond footprint to grass.
-    fn clear_footprint_area(&mut self, center: Vec2, tiles: f32) {
-        let hw = tiles * ISO_TILE_HALF_WIDTH;
-        let hh = tiles * ISO_TILE_HALF_HEIGHT;
+    /// Convert any impassable tiles overlapping the given circular footprint to grass.
+    fn clear_footprint_area(&mut self, center: Vec2, radius: f32) {
         let probes = [
             center,
-            center + Vec2::new(-hw, 0.0),
-            center + Vec2::new(hw, 0.0),
-            center + Vec2::new(0.0, -hh),
-            center + Vec2::new(0.0, hh),
+            center + Vec2::new(-radius, 0.0),
+            center + Vec2::new(radius, 0.0),
+            center + Vec2::new(0.0, -radius),
+            center + Vec2::new(0.0, radius),
         ];
         for c in probes {
             let (tx, ty) = Map::get_world_tile_at(c);
@@ -112,7 +110,66 @@ impl World {
 
     pub fn tick(&mut self, dt: Duration) {
         self.run_movement(dt);
+        self.resolve_collisions();
         self.tick_markers(dt);
+    }
+
+    /// O(N^2) circle-vs-circle push-apart. Reflects overlaps along the pair
+    /// normal, splitting the correction between both entities. Skips pushes
+    /// that would land a unit on impassable terrain.
+    fn resolve_collisions(&mut self) {
+        // Snapshot mutable ids + fields so we can index by pair.
+        let mut units: Vec<(hecs::Entity, Vec2, f32)> = self
+            .ecs
+            .query::<(&Position, &Footprint)>()
+            .iter()
+            .map(|(e, (p, f))| (e, p.0, f.0))
+            .collect();
+
+        // A few iterations converges stacked cases.
+        for _ in 0..3 {
+            let mut moved = false;
+            for i in 0..units.len() {
+                for j in (i + 1)..units.len() {
+                    let (a_pos, a_r) = (units[i].1, units[i].2);
+                    let (b_pos, b_r) = (units[j].1, units[j].2);
+                    let d = b_pos - a_pos;
+                    let dist_sq = d.length_squared();
+                    let min_dist = a_r + b_r;
+                    if dist_sq >= min_dist * min_dist {
+                        continue;
+                    }
+                    let dist = dist_sq.sqrt();
+                    let (normal, overlap) = if dist > 1e-4 {
+                        (d / dist, min_dist - dist)
+                    } else {
+                        // Coincident: push along an arbitrary axis.
+                        (Vec2::X, min_dist)
+                    };
+                    let push = normal * (overlap * 0.5);
+                    let new_a = units[i].1 - push;
+                    let new_b = units[j].1 + push;
+                    if self.map.is_area_passable(new_a, a_r) {
+                        units[i].1 = new_a;
+                        moved = true;
+                    }
+                    if self.map.is_area_passable(new_b, b_r) {
+                        units[j].1 = new_b;
+                        moved = true;
+                    }
+                }
+            }
+            if !moved {
+                break;
+            }
+        }
+
+        // Write back.
+        for (e, pos, _) in units {
+            if let Ok(mut p) = self.ecs.get::<&mut Position>(e) {
+                p.0 = pos;
+            }
+        }
     }
 
     fn tick_markers(&mut self, dt: Duration) {

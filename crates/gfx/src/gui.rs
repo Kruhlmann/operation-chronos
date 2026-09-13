@@ -420,7 +420,15 @@ fn refresh_debug_overlay(renderer: &mut LineRenderer, queue: &wgpu::Queue, state
         .query::<(&world::geometry::Position, &world::geometry::Footprint)>()
         .iter()
     {
-        diamond(pos.0, fp.0, DEBUG_UNIT_COLOR, &mut segs);
+        const SEGMENTS: usize = 24;
+        let r = fp.0;
+        let mut prev = pos.0 + glam::Vec2::new(r, 0.0);
+        for i in 1..=SEGMENTS {
+            let t = (i as f32) / (SEGMENTS as f32) * std::f32::consts::TAU;
+            let next = pos.0 + glam::Vec2::new(r * t.cos(), r * t.sin());
+            segs.push((prev, next, DEBUG_UNIT_COLOR));
+            prev = next;
+        }
     }
 
     renderer.set_segments(queue, &segs);
