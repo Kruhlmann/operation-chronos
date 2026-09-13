@@ -37,8 +37,16 @@ impl World {
         let width = DEFAULT_MAP_WIDTH;
         let height = DEFAULT_MAP_HEIGHT;
         let tiles = (0..(width as usize * height as usize))
-            .map(|i| Tile::Grass {
-                variant: (i % 3) as u8,
+            .map(|i| {
+                // Deterministic scatter of rocks (~8%) using a cheap hash.
+                let h = (i as u32).wrapping_mul(2_654_435_761);
+                if h % 12 == 0 {
+                    Tile::Rock
+                } else {
+                    Tile::Grass {
+                        variant: (i % 3) as u8,
+                    }
+                }
             })
             .collect();
         let map = Map {

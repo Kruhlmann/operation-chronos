@@ -1,10 +1,11 @@
 use crate::constants::{
-    GRASS_TOP_SPRITES, ISO_TILE_HALF_HEIGHT, ISO_TILE_HALF_WIDTH, TILE_BASE_SPRITE,
+    GRASS_TOP_SPRITES, ISO_TILE_HALF_HEIGHT, ISO_TILE_HALF_WIDTH, ROCK_TOP_SPRITE, TILE_BASE_SPRITE,
 };
 
 pub enum Tile {
     Void,
     Grass { variant: u8 },
+    Rock,
 }
 
 impl Tile {
@@ -15,6 +16,7 @@ impl Tile {
                 let top = GRASS_TOP_SPRITES[(*variant as usize) % GRASS_TOP_SPRITES.len()];
                 vec![TILE_BASE_SPRITE, top]
             }
+            Tile::Rock => vec![TILE_BASE_SPRITE, ROCK_TOP_SPRITE],
         }
     }
 }

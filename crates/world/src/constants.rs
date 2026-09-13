@@ -18,6 +18,7 @@ pub const GRASS_TOP_SPRITES: [u16; 3] = [
     sprite_index!(1, 2),
 ];
 pub const TILE_BASE_SPRITE: u16 = sprite_index!(0, 0);
+pub const ROCK_TOP_SPRITE: u16 = sprite_index!(3, 0);
 
 pub const DEFAULT_MAP_WIDTH: u16 = 64;
 pub const DEFAULT_MAP_HEIGHT: u16 = 64;
