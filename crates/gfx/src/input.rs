@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use world::World;
 use world::constants::{
-    CAMERA_ZOOM_STEP, PAN_DRAG_CLICK_TIME, PAN_DRAG_CLICK_TOLERANCE, PAN_DRAG_TOLERANCE,
+    CAMERA_ZOOM_STEP, PAN_DRAG_CLICK_TIME, PAN_DRAG_CLICK_TOLERANCE_PIXELS, PAN_DRAG_TOLERANCE,
 };
 
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
@@ -46,8 +46,8 @@ impl Drag {
     }
 
     fn in_click_grace(&self, pos: [f32; 2]) -> bool {
-        self.pressed_at.elapsed().as_secs_f32() < PAN_DRAG_CLICK_TIME
-            && self.manhatten_travel_distance(pos) < PAN_DRAG_CLICK_TOLERANCE
+        self.pressed_at.elapsed() < PAN_DRAG_CLICK_TIME
+            && self.manhatten_travel_distance(pos) < PAN_DRAG_CLICK_TOLERANCE_PIXELS
     }
 
     fn update(&mut self, pos: [f32; 2]) -> Option<[f32; 2]> {

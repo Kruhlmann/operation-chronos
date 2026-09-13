@@ -722,6 +722,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "gfx"
+version = "0.0.1"
+dependencies = [
+ "bytemuck",
+ "glam",
+ "hecs",
+ "image",
+ "lazy_static",
+ "pollster",
+ "tracing",
+ "wgpu",
+ "winit",
+ "world",
+]
+
+[[package]]
 name = "gif"
 version = "0.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -781,20 +797,6 @@ dependencies = [
  "presser",
  "thiserror 2.0.20",
  "windows",
-]
-
-[[package]]
-name = "gui"
-version = "0.0.1"
-dependencies = [
- "bytemuck",
- "glam",
- "hecs",
- "lazy_static",
- "pollster",
- "wgpu",
- "winit",
- "world",
 ]
 
 [[package]]
@@ -1024,7 +1026,7 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 name = "launcher"
 version = "0.0.1"
 dependencies = [
- "gui",
+ "gfx",
  "tracing",
  "tracing-subscriber",
  "world",

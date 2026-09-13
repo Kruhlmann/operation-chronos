@@ -1,11 +1,12 @@
 [package]
-name = "gui"
+name = "gfx"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
 
 [dependencies]
+tracing.workspace = true
 bytemuck.workspace = true
 glam.workspace = true
 hecs.workspace = true
@@ -14,3 +15,4 @@ pollster.workspace = true
 wgpu.workspace = true
 winit.workspace = true
 lazy_static.workspace = true
+image.workspace = true

@@ -1,7 +1,8 @@
+use core::time::Duration;
 use glam::Vec2;
 
 use crate::camera::Camera;
-use crate::constants::{DEFAULT_MAP_HEIGHT, DEFAULT_MAP_WIDTH, MOVE_ORDER_MARKER_TIME};
+use crate::constants::{DEFAULT_MAP_HEIGHT, DEFAULT_MAP_WIDTH, ORDER_MARKER_RENDER_DURATION};
 use crate::entity::UnitKind;
 use crate::geometry::{Facing, Position};
 use crate::map::{Map, Tile};
@@ -69,16 +70,16 @@ impl World {
         ))
     }
 
-    pub fn tick(&mut self, dt: f32) {
+    pub fn tick(&mut self, dt: Duration) {
         self.run_movement(dt);
         self.tick_markers(dt);
     }
 
-    fn tick_markers(&mut self, dt: f32) {
+    fn tick_markers(&mut self, dt: Duration) {
         let mut expired: Vec<hecs::Entity> = Vec::new();
         for (e, m) in self.ecs.query_mut::<&mut MoveMarker>() {
-            m.remaining -= dt;
-            if m.remaining <= 0.0 {
+            m.remaining = m.remaining.saturating_sub(dt);
+            if m.remaining.is_zero() {
                 expired.push(e);
             }
         }
@@ -87,7 +88,8 @@ impl World {
         }
     }
 
-    fn run_movement(&mut self, dt: f32) {
+    fn run_movement(&mut self, dt: Duration) {
+        let dt_s = dt.as_secs_f32();
         let mut arrived: Vec<hecs::Entity> = Vec::new();
         for (e, (pos, facing, speed, order)) in
             self.ecs
@@ -101,7 +103,7 @@ impl World {
                 continue;
             }
             facing.0 = to.y.atan2(to.x);
-            let step = (speed.0 * dt).min(dist);
+            let step = (speed.0 * dt_s).min(dist);
             pos.0 += to / dist * step;
             if step >= dist {
                 arrived.push(e);
@@ -189,7 +191,7 @@ impl World {
             self.ecs.spawn((MoveMarker {
                 unit: e,
                 to: target,
-                remaining: MOVE_ORDER_MARKER_TIME,
+                remaining: ORDER_MARKER_RENDER_DURATION,
             },));
         }
     }

@@ -9,7 +9,7 @@ license = "MIT"
 
 [workspace.dependencies]
 world.path = "crates/world"
-gui.path = "crates/gui"
+gfx.path = "crates/gfx"
 launcher.path = "crates/launcher"
 
 bytemuck = { version = "1", features = ["derive"] }

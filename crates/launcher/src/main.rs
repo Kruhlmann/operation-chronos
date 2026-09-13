@@ -1,7 +1,6 @@
 use tracing_subscriber::EnvFilter;
 
-use gui::Gui;
-use world::AssetLibrary;
+use gfx::{AssetLibrary, Gui};
 use world::constants::{ASSET_DIRECTORY, DEBUG_PRAGMA};
 
 fn main() {

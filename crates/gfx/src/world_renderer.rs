@@ -1,4 +1,5 @@
-use world::{Camera, LoadedTexture, Map};
+use crate::LoadedTexture;
+use world::{Camera, Map};
 
 const MAX_TILES: u64 = 65_536;
 

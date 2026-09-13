@@ -1,13 +1,13 @@
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::{
-    Gpu, HudRenderer, Input, InputEventSideEffect, LineRenderer, SelectionRenderer, SheetId,
-    UnitScene, WorldRenderer,
+    AssetLibrary, Gpu, GpuAssets, HudRenderer, Input, InputEventSideEffect, LineRenderer,
+    SelectionRenderer, SheetId, UnitScene, WorldRenderer,
 };
 use world::constants::{
     ASSET_DIRECTORY, FRAME_TIME, SPRITE_SHEET_COLUMNS, SPRITE_SHEET_PATH, SPRITE_SHEET_ROWS,
-    SPRITE_SIZE_PIXELS, TICK_TIME_SECONDS,
+    SPRITE_SIZE_PIXELS, TICK_TIME,
 };
 
 use winit::{
@@ -20,7 +20,7 @@ use winit::{
 pub struct Running {
     pub window: Arc<Window>,
     pub gpu: Gpu,
-    pub assets: world::GpuAssets,
+    pub assets: GpuAssets,
     pub renderer: WorldRenderer,
     pub units: UnitScene,
     pub selection: SelectionRenderer,
@@ -29,7 +29,7 @@ pub struct Running {
     pub input: Input,
     pub hud: HudRenderer,
     last_tick: Instant,
-    tick_accumulator: f32,
+    tick_accumulator: Duration,
 }
 
 pub enum State {
@@ -39,7 +39,7 @@ pub enum State {
 
 pub struct Gui {
     pub state: State,
-    pub library: world::AssetLibrary,
+    pub library: AssetLibrary,
     pub next_frame_scheduled: Instant,
     pub initial_logical_size: [u32; 2],
     fps_last_frame: Instant,
@@ -48,7 +48,7 @@ pub struct Gui {
 }
 
 impl Gui {
-    pub fn new(library: world::AssetLibrary) -> Self {
+    pub fn new(library: AssetLibrary) -> Self {
         Self {
             state: State::Uninitialized,
             library,
@@ -82,7 +82,7 @@ impl ApplicationHandler for Gui {
 
         let gpu = pollster::block_on(Gpu::new(window.clone()));
 
-        let assets = world::GpuAssets::load(&gpu.device, &gpu.queue, &self.library)
+        let assets = GpuAssets::load(&gpu.device, &gpu.queue, &self.library)
             .expect("failed to load GPU assets");
 
         let sprite_sheet_path = format!("{ASSET_DIRECTORY}/{SPRITE_SHEET_PATH}");
@@ -149,7 +149,7 @@ impl ApplicationHandler for Gui {
             input: Input::default(),
             hud,
             last_tick: Instant::now(),
-            tick_accumulator: 0.0,
+            tick_accumulator: Duration::ZERO,
         }));
     }
 
@@ -235,12 +235,13 @@ impl ApplicationHandler for Gui {
                     .hud
                     .set_marquee(&running.gpu.queue, running.state.selection.marquee.as_ref());
 
-                let tick_dt = now.duration_since(running.last_tick).as_secs_f32();
+                let tick_dt = now.duration_since(running.last_tick);
                 running.last_tick = now;
-                running.tick_accumulator = (running.tick_accumulator + tick_dt).min(0.25);
-                while running.tick_accumulator >= TICK_TIME_SECONDS {
-                    running.state.tick(TICK_TIME_SECONDS);
-                    running.tick_accumulator -= TICK_TIME_SECONDS;
+                running.tick_accumulator =
+                    (running.tick_accumulator + tick_dt).min(Duration::from_millis(250));
+                while running.tick_accumulator >= TICK_TIME {
+                    running.state.tick(TICK_TIME);
+                    running.tick_accumulator -= TICK_TIME;
                 }
 
                 running
@@ -252,7 +253,6 @@ impl ApplicationHandler for Gui {
                     &running.state.ecs,
                 );
                 refresh_move_lines(&mut running.lines, &running.gpu.queue, &running.state.ecs);
-                // Keep all world-space renderers' camera uniforms in sync.
                 running
                     .selection
                     .set_camera(&running.gpu.queue, &running.state.camera);

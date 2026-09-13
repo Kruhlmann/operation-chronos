@@ -31,9 +31,9 @@ pub const CAMERA_ZOOM_STEP: f32 = 0.1;
 
 // Pixel tolerance for when to transition from considering mouse down a "Click" versus a "Drag"
 pub const PAN_DRAG_TOLERANCE: f32 = 12.0;
-pub const PAN_DRAG_CLICK_TIME_SECONDS: f32 = 0.2;
+pub const PAN_DRAG_CLICK_TIME: Duration = Duration::from_millis(200);
 pub const PAN_DRAG_CLICK_TOLERANCE_PIXELS: f32 = 16.0;
-pub const MOVE_ORDER_MARKER_TIME_SECONDS: f32 = 0.6;
+pub const ORDER_MARKER_RENDER_DURATION: Duration = Duration::from_millis(600);
 
 pub const FONT_GLYPH_SIZE: u32 = 8;
 pub const FONT_MAX_CHARACTERS: usize = 256;
@@ -47,4 +47,4 @@ pub const DEBUG_PRAGMA: &str = "\
     wgpu_hal::vulkan::instance=error,\
     debug";
 pub const FRAME_TIME: Duration = Duration::from_nanos(1_000_000_000 / 60);
-pub const TICK_TIME_SECONDS: f32 = 1.0 / 60.0;
+pub const TICK_TIME: Duration = Duration::from_nanos(1_000_000_000 / 60);

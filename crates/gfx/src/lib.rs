@@ -1,4 +1,5 @@
 pub mod appearance;
+pub mod assets;
 pub mod gpu;
 pub mod gui;
 pub mod hud_renderer;
@@ -6,17 +7,20 @@ pub mod input;
 pub mod line_renderer;
 pub mod selection_renderer;
 pub mod shaders;
+pub mod sprite;
 pub mod unit_renderer;
 pub mod unit_scene;
 pub mod world_renderer;
 
 pub use appearance::*;
+pub use assets::*;
 pub use gpu::*;
 pub use gui::*;
 pub use hud_renderer::*;
 pub use input::*;
 pub use line_renderer::*;
 pub use selection_renderer::*;
+pub use sprite::*;
 pub use unit_renderer::*;
 pub use unit_scene::*;
 pub use world_renderer::*;

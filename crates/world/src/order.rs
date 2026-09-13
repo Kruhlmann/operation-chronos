@@ -1,3 +1,4 @@
+use core::time::Duration;
 use glam::Vec2;
 
 #[derive(Clone, Copy, Debug)]
@@ -12,5 +13,5 @@ pub enum UnitOrder {
 pub struct MoveMarker {
     pub unit: hecs::Entity,
     pub to: Vec2,
-    pub remaining: f32,
+    pub remaining: Duration,
 }

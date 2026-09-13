@@ -1,4 +1,6 @@
-use world::{Camera, LoadedTexture};
+use world::Camera;
+
+use crate::LoadedTexture;
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]

@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
 use glam::Vec2;
+use world::Camera;
 use world::entity::UnitKind;
 use world::geometry::{Facing, Position};
-use world::{Camera, GpuAssets};
 
-use crate::UnitRenderer;
 use crate::appearance::{SheetId, SpritePart, SpriteRef};
+use crate::{GpuAssets, UnitRenderer};
 
 pub struct UnitScene {
     renderers: HashMap<SheetId, UnitRenderer>,
