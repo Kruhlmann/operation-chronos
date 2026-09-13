@@ -264,14 +264,15 @@ impl ApplicationHandler for Gui {
                     &running.gpu.queue,
                     &running.state.ecs,
                 );
-                refresh_move_lines(&mut running.lines, &running.gpu.queue, &running.state.ecs);
                 if running.debug_overlay {
+                    refresh_move_lines(&mut running.lines, &running.gpu.queue, &running.state.ecs);
                     refresh_debug_overlay(
                         &mut running.debug_lines,
                         &running.gpu.queue,
                         &running.state,
                     );
                 } else {
+                    running.lines.set_segments(&running.gpu.queue, &[]);
                     running.debug_lines.set_segments(&running.gpu.queue, &[]);
                 }
                 running
@@ -369,11 +370,16 @@ fn refresh_selection_markers(
 
 fn refresh_move_lines(renderer: &mut LineRenderer, queue: &wgpu::Queue, ecs: &hecs::World) {
     let mut segments: Vec<(glam::Vec2, glam::Vec2, [f32; 4])> = Vec::new();
-    for (_e, m) in ecs.query::<&world::order::MoveMarker>().iter() {
-        let Ok(pos) = ecs.get::<&world::geometry::Position>(m.unit) else {
-            continue;
-        };
-        segments.push((pos.0, m.to, [0.1, 0.95, 0.2, 1.0]));
+    let color = [0.1, 0.95, 0.2, 1.0];
+    for (_e, (pos, order)) in ecs
+        .query::<(&world::geometry::Position, &world::order::UnitOrder)>()
+        .iter()
+    {
+        let mut prev = pos.0;
+        for &wp in &order.waypoints {
+            segments.push((prev, wp, color));
+            prev = wp;
+        }
     }
     renderer.set_segments(queue, &segments);
 }
@@ -385,7 +391,6 @@ fn refresh_debug_overlay(renderer: &mut LineRenderer, queue: &wgpu::Queue, state
     use world::constants::{ISO_TILE_HALF_HEIGHT, ISO_TILE_HALF_WIDTH};
     let mut segs: Vec<(glam::Vec2, glam::Vec2, [f32; 4])> = Vec::new();
 
-    // Diamond outline centered at `center` with tile-space size `tiles`.
     let diamond = |center: glam::Vec2, tiles: f32, color: [f32; 4], out: &mut Vec<_>| {
         let hw = tiles * ISO_TILE_HALF_WIDTH;
         let hh = tiles * ISO_TILE_HALF_HEIGHT;
@@ -399,7 +404,6 @@ fn refresh_debug_overlay(renderer: &mut LineRenderer, queue: &wgpu::Queue, state
         out.push((left, top, color));
     };
 
-    // Impassable tiles: outline of the tile itself (size = 1.0), centered at the diamond center.
     for ty in 0..state.map.height as i32 {
         for tx in 0..state.map.width as i32 {
             if !state.map.is_passable(tx, ty) {
@@ -411,7 +415,6 @@ fn refresh_debug_overlay(renderer: &mut LineRenderer, queue: &wgpu::Queue, state
         }
     }
 
-    // Unit footprints: follow live positions exactly.
     for (_e, (pos, fp)) in state
         .ecs
         .query::<(&world::geometry::Position, &world::geometry::Footprint)>()

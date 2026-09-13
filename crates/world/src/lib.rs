@@ -4,6 +4,7 @@ pub mod entity;
 pub mod geometry;
 pub mod map;
 pub mod order;
+pub mod pathfinding;
 pub mod selection;
 pub mod state;
 

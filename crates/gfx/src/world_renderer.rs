@@ -191,7 +191,6 @@ impl WorldRenderer {
             camera_buffer,
             instance_buffer,
             instance_count: 0,
-            sprite_size,
         };
         renderer.set_camera(queue, camera);
         renderer

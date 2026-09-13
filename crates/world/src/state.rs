@@ -2,11 +2,15 @@ use core::time::Duration;
 use glam::Vec2;
 
 use crate::camera::Camera;
-use crate::constants::{DEFAULT_MAP_HEIGHT, DEFAULT_MAP_WIDTH, ORDER_MARKER_RENDER_DURATION};
+use crate::constants::{
+    DEFAULT_MAP_HEIGHT, DEFAULT_MAP_WIDTH, ISO_TILE_HALF_HEIGHT, ISO_TILE_HALF_WIDTH,
+    ORDER_MARKER_RENDER_DURATION,
+};
 use crate::entity::UnitKind;
 use crate::geometry::{Facing, Footprint, Position};
 use crate::map::{Map, Tile};
 use crate::order::{MoveMarker, Speed, UnitOrder};
+use crate::pathfinding;
 use crate::selection::{Marquee, Selected, Selection, aabb_contains, point_hits};
 
 const UNIT_PICK_RADIUS: f32 = 32.0;
@@ -73,7 +77,6 @@ impl World {
 
     /// Convert any impassable tiles overlapping the given diamond footprint to grass.
     fn clear_footprint_area(&mut self, center: Vec2, tiles: f32) {
-        use crate::constants::{ISO_TILE_HALF_HEIGHT, ISO_TILE_HALF_WIDTH};
         let hw = tiles * ISO_TILE_HALF_WIDTH;
         let hh = tiles * ISO_TILE_HALF_HEIGHT;
         let probes = [
@@ -84,13 +87,13 @@ impl World {
             center + Vec2::new(0.0, hh),
         ];
         for c in probes {
-            let (tx, ty) = Map::world_to_tile(c);
+            let (tx, ty) = Map::get_world_tile_at(c);
             if tx < 0 || ty < 0 || tx >= self.map.width as i32 || ty >= self.map.height as i32 {
                 continue;
             }
             let idx = ty as usize * self.map.width as usize + tx as usize;
             if let Some(t) = self.map.tiles.get_mut(idx) {
-                if !t.passable() {
+                if !t.is_passable() {
                     *t = Tile::Grass { variant: 0 };
                 }
             }
@@ -127,44 +130,54 @@ impl World {
 
     fn run_movement(&mut self, dt: Duration) {
         let dt_s = dt.as_secs_f32();
-        let mut arrived: Vec<hecs::Entity> = Vec::new();
-        for (e, (pos, facing, speed, footprint, order)) in
-            self.ecs
-                .query_mut::<(&mut Position, &mut Facing, &Speed, &Footprint, &UnitOrder)>()
-        {
-            let UnitOrder::Move(target) = *order;
-            let to = target - pos.0;
-            let dist = to.length();
-            if dist <= 1e-3 {
-                arrived.push(e);
-                continue;
-            }
-            facing.0 = to.y.atan2(to.x);
-            let step = (speed.0 * dt_s).min(dist);
-            let delta = to / dist * step;
+        let mut done: Vec<hecs::Entity> = Vec::new();
+        for (e, (pos, facing, speed, footprint, order)) in self.ecs.query_mut::<(
+            &mut Position,
+            &mut Facing,
+            &Speed,
+            &Footprint,
+            &mut UnitOrder,
+        )>() {
+            // Advance along waypoints; may consume multiple in one tick if step is large.
             let side = footprint.0;
-            let full = pos.0 + delta;
-            if self.map.is_area_passable(full, side) {
-                pos.0 = full;
-            } else {
-                let slide_x = pos.0 + Vec2::new(delta.x, 0.0);
-                let slide_y = pos.0 + Vec2::new(0.0, delta.y);
-                let ok_x = delta.x != 0.0 && self.map.is_area_passable(slide_x, side);
-                let ok_y = delta.y != 0.0 && self.map.is_area_passable(slide_y, side);
-                if ok_x {
-                    pos.0 = slide_x;
-                } else if ok_y {
-                    pos.0 = slide_y;
-                } else {
-                    arrived.push(e);
+            let mut remaining_step = speed.0 * dt_s;
+            loop {
+                let Some(&target) = order.waypoints.first() else {
+                    done.push(e);
+                    break;
+                };
+                let to = target - pos.0;
+                let dist = to.length();
+                if dist <= 1e-3 {
+                    order.waypoints.remove(0);
                     continue;
                 }
-            }
-            if step >= dist {
-                arrived.push(e);
+                facing.0 = to.y.atan2(to.x);
+                let step = remaining_step.min(dist);
+                let delta = to / dist * step;
+                let full = pos.0 + delta;
+                if self.map.is_area_passable(full, side) {
+                    pos.0 = full;
+                } else {
+                    // Blocked mid-path: drop the whole order.
+                    done.push(e);
+                    break;
+                }
+                if step >= dist {
+                    order.waypoints.remove(0);
+                    remaining_step -= step;
+                    if remaining_step <= 1e-3 {
+                        if order.waypoints.is_empty() {
+                            done.push(e);
+                        }
+                        break;
+                    }
+                } else {
+                    break;
+                }
             }
         }
-        for e in arrived {
+        for e in done {
             let _ = self.ecs.remove_one::<UnitOrder>(e);
         }
     }
@@ -241,11 +254,28 @@ impl World {
             let _ = self.ecs.despawn(e);
         }
 
+        // Snap the goal to nearest passable tile.
+        let goal_tile = Map::get_world_tile_at(target);
+        let goal = match pathfinding::nearest_passable(&self.map, goal_tile, 8) {
+            Some(g) => g,
+            None => return,
+        };
+
         for e in selected {
-            let _ = self.ecs.insert_one(e, UnitOrder::Move(target));
+            let start_pos = match self.ecs.get::<&Position>(e) {
+                Ok(p) => p.0,
+                Err(_) => continue,
+            };
+            let start_tile = Map::get_world_tile_at(start_pos);
+            let Some(tile_path) = pathfinding::find_path(&self.map, start_tile, goal) else {
+                continue;
+            };
+            let waypoints = build_waypoints(start_pos, &tile_path, target);
+            let final_target = *waypoints.last().unwrap_or(&target);
+            let _ = self.ecs.insert_one(e, UnitOrder::path(waypoints));
             self.ecs.spawn((MoveMarker {
                 unit: e,
-                to: target,
+                to: final_target,
                 remaining: ORDER_MARKER_RENDER_DURATION,
             },));
         }
@@ -265,4 +295,30 @@ impl World {
             let _ = self.ecs.insert_one(e, Selected);
         }
     }
+}
+
+/// Convert a tile path from A* into world-space waypoints.
+///
+/// - The first tile (the unit's current tile) is skipped so the unit doesn't
+///   backtrack to its own tile center.
+/// - The final waypoint is replaced with the exact `precise_goal` so the unit
+///   ends where the user clicked instead of snapping to the tile center.
+fn build_waypoints(start_pos: Vec2, tile_path: &[(i32, i32)], precise_goal: Vec2) -> Vec<Vec2> {
+    let mut out: Vec<Vec2> = Vec::new();
+    if tile_path.len() <= 1 {
+        out.push(precise_goal);
+        return out;
+    }
+    for &(tx, ty) in tile_path.iter().skip(1) {
+        let [ax, ay] = Map::tile_to_world(tx as u16, ty as u16);
+        // Tile diamond center (tile_to_world returns the top vertex).
+        out.push(Vec2::new(ax, ay + ISO_TILE_HALF_HEIGHT));
+    }
+    // Snap the terminal waypoint to the exact click, if it stays passable.
+    if let Some(last) = out.last_mut() {
+        *last = precise_goal;
+    }
+    // Silence unused-var warning when path degenerates.
+    let _ = start_pos;
+    out
 }
