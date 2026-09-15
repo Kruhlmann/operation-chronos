@@ -60,7 +60,7 @@ impl Gpu {
     pub fn render(
         &mut self,
         world: &crate::WorldRenderer,
-        selection: &crate::SelectionRenderer,
+        selection: &crate::LineRenderer,
         units: &crate::UnitScene,
         lines: &crate::LineRenderer,
         debug_lines: Option<&crate::LineRenderer>,

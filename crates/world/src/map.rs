@@ -1,8 +1,10 @@
 use glam::Vec2;
 
 use crate::constants::{
-    GRASS_TOP_SPRITES, ISO_TILE_HALF_HEIGHT, ISO_TILE_HALF_WIDTH, ROCK_TOP_SPRITE, TILE_BASE_SPRITE,
+    GRASS_TOP_SPRITES, ISOMETRIC_TILE_HALF_HEIGHT, ISOMETRIC_TILE_HALF_WIDTH, ROCK_TOP_SPRITE,
+    TILE_BASE_SPRITE,
 };
+use crate::geometry::{Disc, Position};
 
 pub enum Tile {
     Void,
@@ -58,15 +60,15 @@ impl Map {
         let fx = x as f32;
         let fy = y as f32;
         [
-            (fx - fy) * ISO_TILE_HALF_WIDTH,
-            (fx + fy) * ISO_TILE_HALF_HEIGHT,
+            (fx - fy) * ISOMETRIC_TILE_HALF_WIDTH,
+            (fx + fy) * ISOMETRIC_TILE_HALF_HEIGHT,
         ]
     }
 
     pub fn get_world_tile_at(p: Vec2) -> (i32, i32) {
         //   ( (tx-ty)*HALF_W, (tx+ty)*HALF_H + HALF_H )
-        let a = p.x / ISO_TILE_HALF_WIDTH; //  tx - ty
-        let b = (p.y - ISO_TILE_HALF_HEIGHT) / ISO_TILE_HALF_HEIGHT; //  tx + ty
+        let a = p.x / ISOMETRIC_TILE_HALF_WIDTH; //  tx - ty
+        let b = (p.y - ISOMETRIC_TILE_HALF_HEIGHT) / ISOMETRIC_TILE_HALF_HEIGHT; //  tx + ty
         let fx = (a + b) * 0.5;
         let fy = (b - a) * 0.5;
         (fx.round() as i32, fy.round() as i32)
@@ -84,20 +86,15 @@ impl Map {
         self.tile_at(tx, ty).map(Tile::is_passable).unwrap_or(false)
     }
 
-    pub fn is_passable_world(&self, p: Vec2) -> bool {
-        let (tx, ty) = Self::get_world_tile_at(p);
+    pub fn is_passable_world(&self, p: Position) -> bool {
+        let (tx, ty) = Self::get_world_tile_at(p.0);
         self.is_passable(tx, ty)
     }
 
-    pub fn is_area_passable(&self, center: Vec2, radius: f32) -> bool {
-        let probes = [
-            center,
-            center + Vec2::new(-radius, 0.0),
-            center + Vec2::new(radius, 0.0),
-            center + Vec2::new(0.0, -radius),
-            center + Vec2::new(0.0, radius),
-        ];
-        probes.iter().all(|c| self.is_passable_world(*c))
+    pub fn is_area_passable(&self, disc: Disc) -> bool {
+        disc.axis_probes()
+            .iter()
+            .all(|c| self.is_passable_world(*c))
     }
 
     pub fn world_bounds(&self) -> WorldBounds {
@@ -109,10 +106,10 @@ impl Map {
         }
         let w = self.width - 1;
         let h = self.height - 1;
-        let min_x = -(h as f32) * ISO_TILE_HALF_WIDTH;
-        let max_x = (w as f32) * ISO_TILE_HALF_WIDTH;
+        let min_x = -(h as f32) * ISOMETRIC_TILE_HALF_WIDTH;
+        let max_x = (w as f32) * ISOMETRIC_TILE_HALF_WIDTH;
         let min_y = 0.0;
-        let max_y = (w as f32 + h as f32) * ISO_TILE_HALF_HEIGHT;
+        let max_y = (w as f32 + h as f32) * ISOMETRIC_TILE_HALF_HEIGHT;
         WorldBounds {
             min: [min_x, min_y],
             max: [max_x, max_y],

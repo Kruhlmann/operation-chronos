@@ -3,19 +3,19 @@ use glam::Vec2;
 
 use crate::camera::Camera;
 use crate::constants::{
-    DEFAULT_MAP_HEIGHT, DEFAULT_MAP_WIDTH, ISO_TILE_HALF_HEIGHT, ORDER_MARKER_RENDER_DURATION,
+    DEFAULT_MAP_HEIGHT, DEFAULT_MAP_WIDTH, ISOMETRIC_TILE_HALF_HEIGHT, ORDER_MARKER_RENDER_DURATION,
 };
 use crate::entity::UnitKind;
-use crate::geometry::{Facing, Footprint, Position};
+use crate::geometry::{Disc, Facing, Footprint, Position};
 use crate::map::{Map, Tile};
 use crate::order::{MoveMarker, Speed, UnitOrder};
 use crate::pathfinding;
-use crate::selection::{Marquee, Selected, Selection, aabb_contains, point_hits};
+use crate::selection::{Marquee, Selected, Selection};
 
 const UNIT_PICK_RADIUS: f32 = 32.0;
 const TANK_SPEED: f32 = 120.0;
-/// Collision/footprint radius in world pixels.
 const TANK_FOOTPRINT: f32 = 14.0;
+const TANK_FOOTPRINT_OFFSET: Vec2 = Vec2::new(0.0, 0.0);
 
 pub struct World {
     pub map: Map,
@@ -68,23 +68,21 @@ impl World {
         let base = Vec2::new(center[0], center[1]);
         let spacing = 96.0;
         for i in -1..=1_i32 {
-            let pos = base + Vec2::new(i as f32 * spacing, 0.0);
-            self.clear_footprint_area(pos, TANK_FOOTPRINT);
+            let pos = Position(base + Vec2::new(i as f32 * spacing, 0.0));
+            self.clear_footprint_area(Self::tank_footprint().disc_at(pos));
             self.spawn_tank(pos);
         }
     }
 
-    /// Convert any impassable tiles overlapping the given circular footprint to grass.
-    fn clear_footprint_area(&mut self, center: Vec2, radius: f32) {
-        let probes = [
-            center,
-            center + Vec2::new(-radius, 0.0),
-            center + Vec2::new(radius, 0.0),
-            center + Vec2::new(0.0, -radius),
-            center + Vec2::new(0.0, radius),
-        ];
+    fn tank_footprint() -> Footprint {
+        Footprint::with_offset(TANK_FOOTPRINT, TANK_FOOTPRINT_OFFSET)
+    }
+
+    /// Convert any impassable tiles overlapping the given footprint disc to grass.
+    fn clear_footprint_area(&mut self, disc: Disc) {
+        let probes = disc.axis_probes();
         for c in probes {
-            let (tx, ty) = Map::get_world_tile_at(c);
+            let (tx, ty) = Map::get_world_tile_at(c.0);
             if tx < 0 || ty < 0 || tx >= self.map.width as i32 || ty >= self.map.height as i32 {
                 continue;
             }
@@ -97,13 +95,13 @@ impl World {
         }
     }
 
-    pub fn spawn_tank(&mut self, pos: Vec2) -> hecs::Entity {
+    pub fn spawn_tank(&mut self, pos: Position) -> hecs::Entity {
         self.ecs.spawn((
-            Position(pos),
+            pos,
             Facing(0.0),
             UnitKind::Tank,
             Speed(TANK_SPEED),
-            Footprint(TANK_FOOTPRINT),
+            Self::tank_footprint(),
         ))
     }
 
@@ -114,39 +112,32 @@ impl World {
     }
 
     fn resolve_collisions(&mut self) {
-        let mut units: Vec<(hecs::Entity, Vec2, f32)> = self
+        let mut units: Vec<(hecs::Entity, Position, Footprint)> = self
             .ecs
             .query::<(&Position, &Footprint)>()
             .iter()
-            .map(|(e, (p, f))| (e, p.0, f.0))
+            .map(|(e, (p, f))| (e, *p, *f))
             .collect();
 
         for _ in 0..3 {
             let mut moved = false;
             for i in 0..units.len() {
                 for j in (i + 1)..units.len() {
-                    let (a_pos, a_r) = (units[i].1, units[i].2);
-                    let (b_pos, b_r) = (units[j].1, units[j].2);
-                    let d = b_pos - a_pos;
-                    let dist_sq = d.length_squared();
-                    let min_dist = a_r + b_r;
-                    if dist_sq >= min_dist * min_dist {
+                    let a = units[i].2.disc_at(units[i].1);
+                    let b = units[j].2.disc_at(units[j].1);
+                    // Overlap and separation are computed on the ground plane,
+                    // so they match the on-screen iso ellipse footprint.
+                    let Some(sep) = a.separation(&b) else {
                         continue;
-                    }
-                    let dist = dist_sq.sqrt();
-                    let (normal, overlap) = if dist > 1e-4 {
-                        (d / dist, min_dist - dist)
-                    } else {
-                        (Vec2::X, min_dist)
                     };
-                    let push = normal * (overlap * 0.5);
+                    let push = sep * 0.5;
                     let new_a = units[i].1 - push;
                     let new_b = units[j].1 + push;
-                    if self.map.is_area_passable(new_a, a_r) {
+                    if self.map.is_area_passable(units[i].2.disc_at(new_a)) {
                         units[i].1 = new_a;
                         moved = true;
                     }
-                    if self.map.is_area_passable(new_b, b_r) {
+                    if self.map.is_area_passable(units[j].2.disc_at(new_b)) {
                         units[j].1 = new_b;
                         moved = true;
                     }
@@ -159,7 +150,7 @@ impl World {
 
         for (e, pos, _) in units {
             if let Ok(mut p) = self.ecs.get::<&mut Position>(e) {
-                p.0 = pos;
+                *p = pos;
             }
         }
     }
@@ -187,7 +178,6 @@ impl World {
             &Footprint,
             &mut UnitOrder,
         )>() {
-            let side = footprint.0;
             let mut remaining_step = speed.0 * dt_s;
             loop {
                 let Some(&target) = order.waypoints.first() else {
@@ -204,7 +194,7 @@ impl World {
                 let step = remaining_step.min(dist);
                 let delta = to / dist * step;
                 let full = pos.0 + delta;
-                if self.map.is_area_passable(full, side) {
+                if self.map.is_area_passable(footprint.disc_at(Position(full))) {
                     pos.0 = full;
                 } else {
                     done.push(e);
@@ -260,7 +250,7 @@ impl World {
 
         let mut hits: Vec<hecs::Entity> = Vec::new();
         for (e, pos) in self.ecs.query::<&Position>().iter() {
-            if aabb_contains(min, max, pos) {
+            if pos.is_in_bounds(min, max) {
                 hits.push(e);
             }
         }
@@ -268,13 +258,15 @@ impl World {
     }
 
     pub fn click_select(&mut self, screen: [f32; 2]) {
-        let world_point: Vec2 = self.camera.screen_to_world(screen).into();
+        let world_point = Position(self.camera.screen_to_world(screen).into());
         let mut best: Option<(hecs::Entity, f32)> = None;
         for (e, pos) in self.ecs.query::<&Position>().iter() {
-            if !point_hits(pos, world_point, UNIT_PICK_RADIUS) {
+            if !pos.hits(world_point, UNIT_PICK_RADIUS) {
                 continue;
             }
-            let d2 = pos.0.distance_squared(world_point);
+            let d2 = Disc::new(*pos, UNIT_PICK_RADIUS)
+                .distance_to(world_point)
+                .powi(2);
             if best.map(|(_, b)| d2 < b).unwrap_or(true) {
                 best = Some((e, d2));
             }
@@ -351,7 +343,7 @@ fn build_waypoints(start_pos: Vec2, tile_path: &[(i32, i32)], precise_goal: Vec2
     }
     for &(tx, ty) in tile_path.iter().skip(1) {
         let [ax, ay] = Map::tile_to_world(tx as u16, ty as u16);
-        out.push(Vec2::new(ax, ay + ISO_TILE_HALF_HEIGHT));
+        out.push(Vec2::new(ax, ay + ISOMETRIC_TILE_HALF_HEIGHT));
     }
     if let Some(last) = out.last_mut() {
         *last = precise_goal;

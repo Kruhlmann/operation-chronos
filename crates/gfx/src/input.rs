@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use world::World;
 use world::constants::{
-    CAMERA_ZOOM_STEP, PAN_DRAG_CLICK_TIME, PAN_DRAG_CLICK_TOLERANCE_PIXELS, PAN_DRAG_TOLERANCE,
+    CAMERA_ZOOM_STEP, PAN_DRAG_CLICK_TIME, PAN_DRAG_CLICK_TOLERANCE_PIXELS, PAN_DRAG_TOLERANCE_PIXELS,
 };
 
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
@@ -14,13 +14,13 @@ pub struct Input {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Button {
+enum GuiMouseButton {
     Left,
     Right,
 }
 
 struct ActiveDrag {
-    button: Button,
+    button: GuiMouseButton,
     drag: Drag,
 }
 
@@ -54,12 +54,8 @@ impl Drag {
         let delta = [pos[0] - self.last_pos[0], pos[1] - self.last_pos[1]];
         self.last_pos = pos;
         if !self.active {
-            // Never activate drag inside the grace window; a quick release
-            // there always wins as a click.
-            if self.in_click_grace(pos) {
-                return None;
-            }
-            if self.manhatten_travel_distance(pos) < PAN_DRAG_TOLERANCE {
+            if self.in_click_grace(pos) || self.manhatten_travel_distance(pos) < PAN_DRAG_TOLERANCE_PIXELS
+            {
                 return None;
             }
             self.active = true;
@@ -88,8 +84,8 @@ impl Input {
             } => {
                 if self.active.is_none() {
                     let button = match button {
-                        MouseButton::Left => Some(Button::Left),
-                        MouseButton::Right => Some(Button::Right),
+                        MouseButton::Left => Some(GuiMouseButton::Left),
+                        MouseButton::Right => Some(GuiMouseButton::Right),
                         _ => None,
                     };
                     if let Some(button) = button {
@@ -107,8 +103,8 @@ impl Input {
                 ..
             } => {
                 let released = match button {
-                    MouseButton::Left => Button::Left,
-                    MouseButton::Right => Button::Right,
+                    MouseButton::Left => GuiMouseButton::Left,
+                    MouseButton::Right => GuiMouseButton::Right,
                     _ => return None,
                 };
                 match &self.active {
@@ -117,19 +113,21 @@ impl Input {
                         // Grace window forces a click regardless of drag state.
                         let click_wins = a.drag.in_click_grace(self.cursor);
                         match a.button {
-                            Button::Left if click_wins => {
+                            GuiMouseButton::Left if click_wins => {
                                 world.clear_marquee();
                                 Some(InputEventSideEffect::ClickLeft(self.cursor))
                             }
-                            Button::Left if a.drag.active => {
+                            GuiMouseButton::Left if a.drag.active => {
                                 world.commit_marquee();
                                 None
                             }
-                            Button::Left => Some(InputEventSideEffect::ClickLeft(self.cursor)),
-                            Button::Right if click_wins || !a.drag.active => {
+                            GuiMouseButton::Left => {
+                                Some(InputEventSideEffect::ClickLeft(self.cursor))
+                            }
+                            GuiMouseButton::Right if click_wins || !a.drag.active => {
                                 Some(InputEventSideEffect::ClickRight(self.cursor))
                             }
-                            Button::Right => None,
+                            GuiMouseButton::Right => None,
                         }
                     }
                     _ => None,
@@ -140,11 +138,11 @@ impl Input {
                 let a = self.active.as_mut()?;
                 let delta = a.drag.update(self.cursor)?;
                 match a.button {
-                    Button::Right => {
+                    GuiMouseButton::Right => {
                         world.pan(-delta[0], -delta[1]);
                         Some(InputEventSideEffect::UpdateCamera)
                     }
-                    Button::Left => {
+                    GuiMouseButton::Left => {
                         world.set_marquee(a.drag.origin, self.cursor);
                         None
                     }
