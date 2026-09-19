@@ -18,7 +18,7 @@ use winit::{
     window::{Window, WindowId},
 };
 
-pub struct Running {
+pub struct RunningState {
     pub window: Arc<Window>,
     pub gpu: Gpu,
     pub assets: GpuAssets,
@@ -37,7 +37,7 @@ pub struct Running {
 
 pub enum State {
     Uninitialized,
-    Running(Box<Running>),
+    Running(Box<RunningState>),
 }
 
 pub struct Gui {
@@ -147,7 +147,7 @@ impl ApplicationHandler for Gui {
             &world_state.camera,
         );
 
-        self.state = State::Running(Box::new(Running {
+        self.state = State::Running(Box::new(RunningState {
             window,
             gpu,
             assets,
