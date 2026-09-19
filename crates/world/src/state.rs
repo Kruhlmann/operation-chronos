@@ -8,7 +8,7 @@ use crate::geometry::{Disc, Facing, Footprint, Position};
 use crate::map::{Map, Tile};
 use crate::order::{MoveMarker, Speed, UnitOrder};
 use crate::pathfinding::{AStarPathFindingAlgorithm, PathFinder, PathFindingResult, Waypoints};
-use crate::selection::{Marquee, Selected, Selection, aabb_contains, point_hits};
+use crate::selection::{Marquee, Selected, Selection};
 
 const NEAREST_PASSABLE_TILE_SEARCH_RADIUS: i32 = 8;
 const UNIT_PICK_RADIUS: f32 = 32.0;

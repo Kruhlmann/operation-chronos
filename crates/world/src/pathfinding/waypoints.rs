@@ -1,6 +1,6 @@
 use glam::Vec2;
 
-use crate::{Map, TilePosition, constants::ISO_TILE_HALF_HEIGHT};
+use crate::{Map, TilePosition, constants::ISOMETRIC_TILE_HALF_HEIGHT};
 
 pub struct Waypoints(pub Vec<Vec2>);
 
@@ -13,7 +13,7 @@ impl Waypoints {
         }
         for &(tx, ty) in path.iter().skip(1) {
             let [ax, ay] = Map::tile_to_world(tx as u16, ty as u16);
-            out.push(Vec2::new(ax, ay + ISO_TILE_HALF_HEIGHT));
+            out.push(Vec2::new(ax, ay + ISOMETRIC_TILE_HALF_HEIGHT));
         }
         if let Some(last) = out.last_mut() {
             *last = end;
