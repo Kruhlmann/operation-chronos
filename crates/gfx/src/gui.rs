@@ -383,7 +383,7 @@ fn refresh_move_lines(renderer: &mut LineRenderer, queue: &wgpu::Queue, ecs: &he
     let mut segments: Vec<(glam::Vec2, glam::Vec2, [f32; 4])> = Vec::new();
     let color = [0.1, 0.95, 0.2, 1.0];
     for (_e, (pos, order)) in ecs
-        .query::<(&world::geometry::Position, &world::order::UnitOrder)>()
+        .query::<(&world::geometry::Position, &world::entity::UnitOrder)>()
         .iter()
     {
         let mut prev = pos.0;

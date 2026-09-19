@@ -4,9 +4,9 @@ use glam::Vec2;
 use crate::camera::Camera;
 use crate::constants::{DEFAULT_MAP_HEIGHT, DEFAULT_MAP_WIDTH, ORDER_MARKER_RENDER_DURATION};
 use crate::entity::UnitKind;
+use crate::entity::{MoveMarker, Speed, UnitOrder};
 use crate::geometry::{Disc, Facing, Footprint, Position};
 use crate::map::{Map, Tile};
-use crate::order::{MoveMarker, Speed, UnitOrder};
 use crate::pathfinding::{AStarPathFindingAlgorithm, PathFinder, PathFindingResult, Waypoints};
 use crate::selection::{Marquee, Selected, Selection};
 
