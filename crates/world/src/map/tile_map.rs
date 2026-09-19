@@ -8,7 +8,7 @@ use data::io::Saveable;
 
 use crate::{Tile, TilePlacement, TilePosition, WorldBounds};
 
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct Map {
     pub name: String,
     pub width: u16,

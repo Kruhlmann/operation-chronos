@@ -10,4 +10,3 @@ glam.workspace = true
 hecs.workspace = true
 data.workspace = true
 serde.workspace = true
-bincode.workspace = true
