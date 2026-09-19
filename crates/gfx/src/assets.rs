@@ -50,9 +50,7 @@ impl AssetLibrary {
                     Some(ext) if ext == "oog" => {
                         assets.insert(Asset::Oog(path.to_string_lossy().to_string()));
                     }
-                    p => {
-                        tracing::warn!("Warning: Unsupported asset type {p:?} for file {path:?}",);
-                    }
+                    _ => {}
                 };
             }
         }

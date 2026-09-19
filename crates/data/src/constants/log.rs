@@ -11,6 +11,6 @@ lazy_static::lazy_static! {
         winit::platform_impl::linux::x11::xdisplay=error,\
         wgpu_hal::vulkan::instance=error,\
         wgpu_hal::vulkan::adapter=warn,\
-        winit::platform_impl::linux::x11::window=warn
+        winit::platform_impl::linux::x11::window=warn,\
         {}", *LOG_LEVEL);
 }

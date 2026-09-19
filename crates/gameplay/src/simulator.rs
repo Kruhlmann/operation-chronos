@@ -335,4 +335,20 @@ impl Simulator {
             let _ = self.ecs.insert_one(e, Selected);
         }
     }
+
+    pub fn temp_create_map() -> Map {
+        let mut tiles: Vec<Tile> = Vec::new();
+        for y in 0u32..64 {
+            for x in 0u32..64 {
+                if x.is_multiple_of(5) && y.is_multiple_of(3) {
+                    tiles.push(Tile::Rock);
+                } else if x.is_multiple_of(2) && y.is_multiple_of(9) {
+                    tiles.push(Tile::Grass { variant: 1 });
+                } else {
+                    tiles.push(Tile::Grass { variant: 0 });
+                }
+            }
+        }
+        Map::new(64, 64, tiles).unwrap()
+    }
 }

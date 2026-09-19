@@ -7,6 +7,7 @@ pub struct TilePlacement {
 
 pub type TilePosition = (i32, i32);
 
+#[derive(serde::Deserialize, serde::Serialize)]
 pub enum Tile {
     Void,
     Grass { variant: u8 },
