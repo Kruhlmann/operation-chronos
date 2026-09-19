@@ -2,7 +2,8 @@ use std::time::Instant;
 
 use world::World;
 use world::constants::{
-    CAMERA_ZOOM_STEP, PAN_DRAG_CLICK_TIME, PAN_DRAG_CLICK_TOLERANCE_PIXELS, PAN_DRAG_TOLERANCE_PIXELS,
+    CAMERA_ZOOM_STEP, PAN_DRAG_CLICK_TIME, PAN_DRAG_CLICK_TOLERANCE_PIXELS,
+    PAN_DRAG_TOLERANCE_PIXELS,
 };
 
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
@@ -54,7 +55,8 @@ impl Drag {
         let delta = [pos[0] - self.last_pos[0], pos[1] - self.last_pos[1]];
         self.last_pos = pos;
         if !self.active {
-            if self.in_click_grace(pos) || self.manhatten_travel_distance(pos) < PAN_DRAG_TOLERANCE_PIXELS
+            if self.in_click_grace(pos)
+                || self.manhatten_travel_distance(pos) < PAN_DRAG_TOLERANCE_PIXELS
             {
                 return None;
             }
