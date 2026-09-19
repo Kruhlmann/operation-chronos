@@ -1,4 +1,6 @@
-use crate::{Map, TilePosition, pathfinding::PathFindingAlgorithm};
+use world::map::{Map, TilePosition};
+
+use crate::pathfinding::PathFindingAlgorithm;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum PathFindingResult {
@@ -30,7 +32,7 @@ impl PathFinder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Tile;
+    use world::Tile;
 
     struct AlgorithmFindsSevenSevenPath;
     impl PathFindingAlgorithm for AlgorithmFindsSevenSevenPath {

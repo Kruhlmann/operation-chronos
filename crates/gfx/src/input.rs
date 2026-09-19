@@ -1,10 +1,10 @@
 use std::time::Instant;
 
-use world::World;
-use world::constants::{
+use data::constants::{
     CAMERA_ZOOM_STEP, PAN_DRAG_CLICK_TIME, PAN_DRAG_CLICK_TOLERANCE_PIXELS,
     PAN_DRAG_TOLERANCE_PIXELS,
 };
+use gameplay::Simulator;
 
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 
@@ -76,7 +76,7 @@ impl Input {
     pub fn handle(
         &mut self,
         event: &WindowEvent,
-        world: &mut World,
+        world: &mut Simulator,
     ) -> Option<InputEventSideEffect> {
         match event {
             WindowEvent::MouseInput {

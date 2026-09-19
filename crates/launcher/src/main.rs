@@ -1,7 +1,7 @@
 use tracing_subscriber::EnvFilter;
 
+use data::constants::{ASSET_DIRECTORY, DEBUG_PRAGMA};
 use gfx::{AssetLibrary, Gui};
-use world::constants::{ASSET_DIRECTORY, DEBUG_PRAGMA};
 
 fn main() {
     let default_level = if cfg!(debug_assertions) {

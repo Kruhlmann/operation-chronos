@@ -6,7 +6,7 @@ use std::{
 
 use num_traits::Signed;
 
-use crate::{Map, TilePosition};
+use world::map::{Map, TilePosition};
 
 pub struct ManhattenDistance<T>(T);
 
@@ -103,7 +103,7 @@ impl PathFindingAlgorithm for AStarPathFindingAlgorithm {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::map::Tile;
+    use world::Tile;
 
     fn map_from(rows: &[&str]) -> Map {
         let h = rows.len() as u16;

@@ -1,14 +1,14 @@
 use core::time::Duration;
-use glam::Vec2;
 
-use crate::camera::Camera;
-use crate::constants::{DEFAULT_MAP_HEIGHT, DEFAULT_MAP_WIDTH, ORDER_MARKER_RENDER_DURATION};
-use crate::entity::UnitKind;
-use crate::entity::{MoveMarker, Speed, UnitOrder};
-use crate::geometry::{Disc, Facing, Footprint, Position};
-use crate::map::{Map, Tile};
-use crate::pathfinding::{AStarPathFindingAlgorithm, PathFinder, PathFindingResult, Waypoints};
-use crate::selection::{Marquee, Selected, Selection};
+use data::{
+    constants::{DEFAULT_MAP_HEIGHT, DEFAULT_MAP_WIDTH},
+    geometry::{Disc, Facing, Footprint, Position},
+};
+use glam::Vec2;
+use world::{
+    Map, Tile,
+    entity::{MoveMarker, Speed, UnitKind, UnitOrder},
+};
 
 const NEAREST_PASSABLE_TILE_SEARCH_RADIUS: i32 = 8;
 const UNIT_PICK_RADIUS: f32 = 32.0;
@@ -16,14 +16,20 @@ const TANK_SPEED: f32 = 120.0;
 const TANK_FOOTPRINT: f32 = 14.0;
 const TANK_FOOTPRINT_OFFSET: Vec2 = Vec2::new(0.0, 0.0);
 
-pub struct World {
+use crate::{
+    camera::Camera,
+    pathfinding::{AStarPathFindingAlgorithm, PathFinder, PathFindingResult, Waypoints},
+    selection::{Marquee, Selected, Selection},
+};
+
+pub struct Simulator {
     pub map: Map,
     pub camera: Camera,
     pub selection: Selection,
     pub ecs: hecs::World,
 }
 
-impl World {
+impl Simulator {
     pub fn new(map: Map, viewport: [f32; 2]) -> Self {
         let bounds = map.world_bounds();
         let mut camera = Camera::new(viewport);
@@ -301,8 +307,8 @@ impl World {
             None => return,
         };
 
-        for e in selected {
-            let start_pos = match self.ecs.get::<&Position>(e) {
+        for unit in selected {
+            let start_pos = match self.ecs.get::<&Position>(unit) {
                 Ok(p) => p.0,
                 Err(_) => continue,
             };
@@ -314,12 +320,8 @@ impl World {
             };
             let Waypoints(waypoints) = Waypoints::compute_from_path(start_pos, target, &tile_path);
             let final_target = *waypoints.last().unwrap_or(&target);
-            let _ = self.ecs.insert_one(e, UnitOrder::path(waypoints));
-            self.ecs.spawn((MoveMarker {
-                unit: e,
-                to: final_target,
-                remaining: ORDER_MARKER_RENDER_DURATION,
-            },));
+            let _ = self.ecs.insert_one(unit, UnitOrder::path(waypoints));
+            self.ecs.spawn((MoveMarker::new(unit, final_target),));
         }
     }
 

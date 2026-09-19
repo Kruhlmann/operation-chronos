@@ -1,6 +1,6 @@
+use data::constants::ISOMETRIC_TILE_HALF_HEIGHT;
 use glam::Vec2;
-
-use crate::{Map, TilePosition, constants::ISOMETRIC_TILE_HALF_HEIGHT};
+use world::{Map, TilePosition};
 
 pub struct Waypoints(pub Vec<Vec2>);
 

@@ -1,6 +1,8 @@
+use data::constants::TILE_SPRITE_ANCHOR;
+use gameplay::Camera;
+use world::Map;
+
 use crate::LoadedTexture;
-use world::constants::TILE_SPRITE_ANCHOR;
-use world::{Camera, Map};
 
 const MAX_TILES: u64 = 65_536;
 

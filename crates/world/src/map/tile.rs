@@ -1,4 +1,4 @@
-use crate::constants::{GRASS_TOP_SPRITES, ROCK_TOP_SPRITE, TILE_BASE_SPRITE};
+use data::constants::{GRASS_TOP_SPRITES, ROCK_TOP_SPRITE, TILE_BASE_SPRITE};
 
 pub struct TilePlacement {
     pub world_position: [f32; 2],

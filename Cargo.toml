@@ -11,6 +11,8 @@ license = "MIT"
 world.path = "crates/world"
 gfx.path = "crates/gfx"
 launcher.path = "crates/launcher"
+gameplay.path = "crates/gameplay"
+data.path = "crates/data"
 
 bytemuck = { version = "1", features = ["derive"] }
 glam = "0.29"

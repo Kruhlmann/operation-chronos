@@ -11,6 +11,6 @@ path = "src/main.rs"
 
 [dependencies]
 gfx.workspace = true
-world.workspace = true
+data.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true

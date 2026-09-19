@@ -1,5 +1,6 @@
 use core::time::Duration;
 
+use data::constants::ORDER_MARKER_RENDER_DURATION;
 use glam::Vec2;
 
 #[derive(Clone, Debug)]
@@ -26,6 +27,16 @@ impl UnitOrder {
 #[derive(Clone, Copy, Debug)]
 pub struct MoveMarker {
     pub unit: hecs::Entity,
-    pub to: Vec2,
+    pub target_position: Vec2,
     pub remaining: Duration,
+}
+
+impl MoveMarker {
+    pub fn new(unit: hecs::Entity, target_position: Vec2) -> Self {
+        Self {
+            unit,
+            target_position,
+            remaining: ORDER_MARKER_RENDER_DURATION,
+        }
+    }
 }

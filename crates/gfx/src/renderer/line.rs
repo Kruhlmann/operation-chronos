@@ -1,4 +1,4 @@
-use world::Camera;
+use gameplay::Camera;
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]

@@ -5,11 +5,14 @@ use crate::{
     AssetLibrary, Gpu, GpuAssets, HudRenderer, Input, InputEventSideEffect, LineRenderer, SheetId,
     UnitScene, WorldRenderer,
 };
-use world::constants::{
+use data::constants::{
     ASSET_DIRECTORY, FRAME_TIME, SPRITE_SHEET_COLUMNS, SPRITE_SHEET_PATH, SPRITE_SHEET_ROWS,
     SPRITE_SIZE_PIXELS, TICK_TIME,
 };
+use data::geometry::{Disc, Footprint, Position};
+use gameplay::selection::Selected;
 
+use gameplay::simulator::Simulator;
 use winit::{
     application::ApplicationHandler,
     event::{ElementState, KeyEvent, WindowEvent},
@@ -17,6 +20,8 @@ use winit::{
     keyboard::{KeyCode, PhysicalKey},
     window::{Window, WindowId},
 };
+use world::Map;
+use world::entity::UnitOrder;
 
 pub struct RunningState {
     pub window: Arc<Window>,
@@ -28,7 +33,7 @@ pub struct RunningState {
     pub lines: LineRenderer,
     pub debug_lines: LineRenderer,
     pub debug_overlay: bool,
-    pub state: world::World,
+    pub simulator: Simulator,
     pub input: Input,
     pub hud: HudRenderer,
     last_tick: Instant,
@@ -103,7 +108,7 @@ impl ApplicationHandler for Gui {
         );
         hud.set_text(&gpu.queue, "FPS: 0", [8.0, 8.0]);
 
-        let world_state = world::World::placeholder(surface_size);
+        let world_state = Simulator::placeholder(surface_size);
 
         let mut renderer = WorldRenderer::new(
             &gpu.device,
@@ -157,7 +162,7 @@ impl ApplicationHandler for Gui {
             lines,
             debug_lines,
             debug_overlay: false,
-            state: world_state,
+            simulator: world_state,
             input: Input::default(),
             hud,
             last_tick: Instant::now(),
@@ -204,13 +209,13 @@ impl ApplicationHandler for Gui {
                 if size.height > 0 {
                     let viewport = [size.width as f32, size.height as f32];
                     running.hud.set_surface_size(&running.gpu.queue, viewport);
-                    running.state.resize(viewport);
+                    running.simulator.resize(viewport);
                     running
                         .renderer
-                        .set_camera(&running.gpu.queue, &running.state.camera);
+                        .set_camera(&running.gpu.queue, &running.simulator.camera);
                     running
                         .units
-                        .set_camera(&running.gpu.queue, &running.state.camera);
+                        .set_camera(&running.gpu.queue, &running.simulator.camera);
                 }
             }
 
@@ -243,33 +248,38 @@ impl ApplicationHandler for Gui {
                     let text = format!("FPS: {fps:.0}  {frame_ms:.2} MS");
                     running.hud.set_text(&running.gpu.queue, &text, [8.0, 8.0]);
                 }
-                running
-                    .hud
-                    .set_marquee(&running.gpu.queue, running.state.selection.marquee.as_ref());
+                running.hud.set_marquee(
+                    &running.gpu.queue,
+                    running.simulator.selection.marquee.as_ref(),
+                );
 
                 let tick_dt = now.duration_since(running.last_tick);
                 running.last_tick = now;
                 running.tick_accumulator =
                     (running.tick_accumulator + tick_dt).min(Duration::from_millis(250));
                 while running.tick_accumulator >= TICK_TIME {
-                    running.state.tick(TICK_TIME);
+                    running.simulator.tick(TICK_TIME);
                     running.tick_accumulator -= TICK_TIME;
                 }
 
                 running
                     .units
-                    .refresh(&running.gpu.queue, &running.state.ecs);
+                    .refresh(&running.gpu.queue, &running.simulator.ecs);
                 refresh_selection_markers(
                     &mut running.selection,
                     &running.gpu.queue,
-                    &running.state.ecs,
+                    &running.simulator.ecs,
                 );
                 if running.debug_overlay {
-                    refresh_move_lines(&mut running.lines, &running.gpu.queue, &running.state.ecs);
+                    refresh_move_lines(
+                        &mut running.lines,
+                        &running.gpu.queue,
+                        &running.simulator.ecs,
+                    );
                     refresh_debug_overlay(
                         &mut running.debug_lines,
                         &running.gpu.queue,
-                        &running.state,
+                        &running.simulator,
                     );
                 } else {
                     running.lines.set_segments(&running.gpu.queue, &[]);
@@ -277,19 +287,19 @@ impl ApplicationHandler for Gui {
                 }
                 running
                     .selection
-                    .set_camera(&running.gpu.queue, &running.state.camera);
+                    .set_camera(&running.gpu.queue, &running.simulator.camera);
                 running
                     .lines
-                    .set_camera(&running.gpu.queue, &running.state.camera);
+                    .set_camera(&running.gpu.queue, &running.simulator.camera);
                 running
                     .debug_lines
-                    .set_camera(&running.gpu.queue, &running.state.camera);
+                    .set_camera(&running.gpu.queue, &running.simulator.camera);
                 running
                     .units
-                    .set_camera(&running.gpu.queue, &running.state.camera);
+                    .set_camera(&running.gpu.queue, &running.simulator.camera);
                 running
                     .renderer
-                    .set_camera(&running.gpu.queue, &running.state.camera);
+                    .set_camera(&running.gpu.queue, &running.simulator.camera);
                 running.gpu.render(
                     &running.renderer,
                     &running.selection,
@@ -317,23 +327,23 @@ impl ApplicationHandler for Gui {
                 running.debug_overlay = !running.debug_overlay;
             }
 
-            other => match running.input.handle(&other, &mut running.state) {
+            other => match running.input.handle(&other, &mut running.simulator) {
                 Some(InputEventSideEffect::UpdateCamera) => {
                     running
                         .renderer
-                        .set_camera(&running.gpu.queue, &running.state.camera);
+                        .set_camera(&running.gpu.queue, &running.simulator.camera);
                     running
                         .units
-                        .set_camera(&running.gpu.queue, &running.state.camera);
+                        .set_camera(&running.gpu.queue, &running.simulator.camera);
                     running
                         .selection
-                        .set_camera(&running.gpu.queue, &running.state.camera);
+                        .set_camera(&running.gpu.queue, &running.simulator.camera);
                     running
                         .lines
-                        .set_camera(&running.gpu.queue, &running.state.camera);
+                        .set_camera(&running.gpu.queue, &running.simulator.camera);
                 }
-                Some(InputEventSideEffect::ClickLeft(p)) => running.state.click_select(p),
-                Some(InputEventSideEffect::ClickRight(p)) => running.state.click_order(p),
+                Some(InputEventSideEffect::ClickLeft(p)) => running.simulator.click_select(p),
+                Some(InputEventSideEffect::ClickRight(p)) => running.simulator.click_order(p),
                 None => {}
             },
         }
@@ -353,7 +363,7 @@ const SELECTION_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 0.9];
 
 fn push_disc_outline(
     segs: &mut Vec<(glam::Vec2, glam::Vec2, [f32; 4])>,
-    disc: world::geometry::Disc,
+    disc: Disc,
     color: [f32; 4],
 ) {
     const SEGMENTS: usize = 24;
@@ -366,14 +376,7 @@ fn push_disc_outline(
 
 fn refresh_selection_markers(renderer: &mut LineRenderer, queue: &wgpu::Queue, ecs: &hecs::World) {
     let mut segs: Vec<(glam::Vec2, glam::Vec2, [f32; 4])> = Vec::new();
-    for (_e, (pos, fp, _sel)) in ecs
-        .query::<(
-            &world::geometry::Position,
-            &world::geometry::Footprint,
-            &world::selection::Selected,
-        )>()
-        .iter()
-    {
+    for (_e, (pos, fp, _sel)) in ecs.query::<(&Position, &Footprint, &Selected)>().iter() {
         push_disc_outline(&mut segs, fp.disc_at(*pos), SELECTION_COLOR);
     }
     renderer.set_segments(queue, &segs);
@@ -382,10 +385,7 @@ fn refresh_selection_markers(renderer: &mut LineRenderer, queue: &wgpu::Queue, e
 fn refresh_move_lines(renderer: &mut LineRenderer, queue: &wgpu::Queue, ecs: &hecs::World) {
     let mut segments: Vec<(glam::Vec2, glam::Vec2, [f32; 4])> = Vec::new();
     let color = [0.1, 0.95, 0.2, 1.0];
-    for (_e, (pos, order)) in ecs
-        .query::<(&world::geometry::Position, &world::entity::UnitOrder)>()
-        .iter()
-    {
+    for (_e, (pos, order)) in ecs.query::<(&Position, &UnitOrder)>().iter() {
         let mut prev = pos.0;
         for &wp in &order.waypoints {
             segments.push((prev, wp, color));
@@ -398,8 +398,12 @@ fn refresh_move_lines(renderer: &mut LineRenderer, queue: &wgpu::Queue, ecs: &he
 const DEBUG_TILE_COLOR: [f32; 4] = [1.0, 0.2, 0.2, 0.9];
 const DEBUG_UNIT_COLOR: [f32; 4] = [0.2, 1.0, 0.4, 0.9];
 
-fn refresh_debug_overlay(renderer: &mut LineRenderer, queue: &wgpu::Queue, state: &world::World) {
-    use world::constants::{ISOMETRIC_TILE_HALF_HEIGHT, ISOMETRIC_TILE_HALF_WIDTH};
+fn refresh_debug_overlay(
+    renderer: &mut LineRenderer,
+    queue: &wgpu::Queue,
+    state: &gameplay::simulator::Simulator,
+) {
+    use data::constants::{ISOMETRIC_TILE_HALF_HEIGHT, ISOMETRIC_TILE_HALF_WIDTH};
     let mut segs: Vec<(glam::Vec2, glam::Vec2, [f32; 4])> = Vec::new();
 
     let diamond = |center: glam::Vec2, tiles: f32, color: [f32; 4], out: &mut Vec<_>| {
@@ -418,7 +422,7 @@ fn refresh_debug_overlay(renderer: &mut LineRenderer, queue: &wgpu::Queue, state
     for ty in 0..state.map.height as i32 {
         for tx in 0..state.map.width as i32 {
             if !state.map.is_passable(tx, ty) {
-                let [ax, ay] = world::Map::tile_to_world(tx as u16, ty as u16);
+                let [ax, ay] = Map::tile_to_world(tx as u16, ty as u16);
                 // tile_to_world returns the top vertex; center is one HALF_H below.
                 let center = glam::Vec2::new(ax, ay + ISOMETRIC_TILE_HALF_HEIGHT);
                 diamond(center, 1.0, DEBUG_TILE_COLOR, &mut segs);
@@ -426,11 +430,7 @@ fn refresh_debug_overlay(renderer: &mut LineRenderer, queue: &wgpu::Queue, state
         }
     }
 
-    for (_e, (pos, fp)) in state
-        .ecs
-        .query::<(&world::geometry::Position, &world::geometry::Footprint)>()
-        .iter()
-    {
+    for (_e, (pos, fp)) in state.ecs.query::<(&Position, &Footprint)>().iter() {
         push_disc_outline(&mut segs, fp.disc_at(*pos), DEBUG_UNIT_COLOR);
     }
 

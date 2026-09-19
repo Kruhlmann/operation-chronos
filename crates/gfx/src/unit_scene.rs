@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
+use data::geometry::{Facing, Position};
+use gameplay::Camera;
 use glam::Vec2;
-use world::Camera;
 use world::entity::UnitKind;
-use world::geometry::{Facing, Position};
 
 use crate::sprites::{SheetId, SpritePart, SpriteRef};
 use crate::{GpuAssets, UnitRenderer};

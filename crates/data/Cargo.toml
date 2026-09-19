@@ -1,12 +1,9 @@
 [package]
-name = "world"
+name = "data"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
 
 [dependencies]
-num-traits.workspace = true
 glam.workspace = true
-hecs.workspace = true
-data.workspace = true

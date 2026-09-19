@@ -1,4 +1,4 @@
-use world::Facing;
+use data::geometry::Facing;
 
 use crate::SheetId;
 

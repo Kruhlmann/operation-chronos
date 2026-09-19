@@ -1,10 +1,9 @@
 use glam::Vec2;
 
-use crate::geometry::{Disc, Position};
-use crate::{
-    Tile, TilePlacement, TilePosition, WorldBounds,
-    constants::{ISOMETRIC_TILE_HALF_HEIGHT, ISOMETRIC_TILE_HALF_WIDTH},
-};
+use data::constants::{ISOMETRIC_TILE_HALF_HEIGHT, ISOMETRIC_TILE_HALF_WIDTH};
+use data::geometry::{Disc, Position};
+
+use crate::{Tile, TilePlacement, TilePosition, WorldBounds};
 
 pub struct Map {
     pub width: u16,
@@ -12,7 +11,7 @@ pub struct Map {
     pub tiles: Vec<Tile>,
 }
 
-#[derive(Debug)]
+#[derive()]
 pub enum MapInitError {
     MapSizeIncorrect(u16, u16, usize),
 }

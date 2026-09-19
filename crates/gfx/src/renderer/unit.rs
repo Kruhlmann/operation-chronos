@@ -1,4 +1,4 @@
-use world::Camera;
+use gameplay::Camera;
 
 use crate::LoadedTexture;
 

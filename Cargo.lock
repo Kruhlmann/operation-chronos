@@ -495,6 +495,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f"
 
 [[package]]
+name = "data"
+version = "0.0.1"
+dependencies = [
+ "glam",
+]
+
+[[package]]
 name = "dispatch"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -689,6 +696,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "gameplay"
+version = "0.0.1"
+dependencies = [
+ "data",
+ "glam",
+ "hecs",
+ "num-traits",
+ "world",
+]
+
+[[package]]
 name = "gethostname"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -726,6 +744,8 @@ name = "gfx"
 version = "0.0.1"
 dependencies = [
  "bytemuck",
+ "data",
+ "gameplay",
  "glam",
  "hecs",
  "image",
@@ -1026,10 +1046,10 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 name = "launcher"
 version = "0.0.1"
 dependencies = [
+ "data",
  "gfx",
  "tracing",
  "tracing-subscriber",
- "world",
 ]
 
 [[package]]
@@ -3319,6 +3339,7 @@ checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
 name = "world"
 version = "0.0.1"
 dependencies = [
+ "data",
  "glam",
  "hecs",
  "num-traits",

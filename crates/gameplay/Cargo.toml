@@ -1,5 +1,5 @@
 [package]
-name = "world"
+name = "gameplay"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -8,5 +8,6 @@ publish = false
 [dependencies]
 num-traits.workspace = true
 glam.workspace = true
-hecs.workspace = true
 data.workspace = true
+world.workspace = true
+hecs.workspace = true

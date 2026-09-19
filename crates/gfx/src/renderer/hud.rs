@@ -1,5 +1,5 @@
-use world::constants::{FONT_CHARSET, FONT_GLYPH_SIZE, FONT_MAX_CHARACTERS};
-use world::selection::Marquee;
+use data::constants::{FONT_CHARSET, FONT_GLYPH_SIZE, FONT_MAX_CHARACTERS};
+use gameplay::Marquee;
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
