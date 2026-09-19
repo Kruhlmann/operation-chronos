@@ -58,11 +58,7 @@ impl Simulator {
                 }
             })
             .collect();
-        let map = Map {
-            width,
-            height,
-            tiles,
-        };
+        let map = Map::new(width, height, tiles).unwrap();
         let mut world = Self::new(map, viewport);
         world.spawn_placeholder_tanks();
         world
