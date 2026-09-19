@@ -4,12 +4,9 @@ version = 2
 yanked = "deny"
 ignore = [
     # `paste` is unmaintained. Pulled in transitively via image -> exr/rav1e.
-    # No safe upgrade available; not a vulnerability. Re-evaluate when `image`
-    # drops it. https://rustsec.org/advisories/RUSTSEC-2024-0436
     "RUSTSEC-2024-0436",
     # `ttf-parser` is unmaintained. Pulled in transitively via
-    # winit -> sctk-adwaita (Wayland client-side decorations). No safe upgrade
-    # available; not a vulnerability. Re-evaluate when `winit` migrates.
+    # winit -> sctk-adwaita 
     # https://rustsec.org/advisories/RUSTSEC-2026-0192
     "RUSTSEC-2026-0192",
 ]
