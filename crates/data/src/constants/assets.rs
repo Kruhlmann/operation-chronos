@@ -31,7 +31,6 @@ lazy_static::lazy_static! {
         parse_u8(env!("CARGO_PKG_VERSION_MINOR")),
         parse_u8(env!("CARGO_PKG_VERSION_PATCH")),
     ];
-    pub static ref BINCODE_CONFIG: bincode::config::Configuration = bincode::config::standard();
 }
 
 const fn parse_u8(s: &str) -> u8 {

@@ -14,7 +14,7 @@ client.path = "crates/client"
 gameplay.path = "crates/gameplay"
 data.path = "crates/data"
 
-bincode = { version = "2", features = ["serde"] }
+postcard = { version = "1", features = ["use-std"] }
 bytemuck = { version = "1", features = ["derive"] }
 glam = "0.29"
 hecs = "0.10"

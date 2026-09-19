@@ -1,9 +1,6 @@
 use serde::{Serialize, de::DeserializeOwned};
 
-use crate::{
-    constants::{BINCODE_CONFIG, GAME_VERSION_BINARY},
-    io::CompressedBytes,
-};
+use crate::{constants::GAME_VERSION_BINARY, io::CompressedBytes};
 
 pub trait Saveable: Sized + Serialize + DeserializeOwned {
     const MAGIC: [u8; 8];
@@ -11,16 +8,15 @@ pub trait Saveable: Sized + Serialize + DeserializeOwned {
     const KIND: &'static str;
 
     fn encode(&self) -> std::io::Result<CompressedBytes> {
-        let raw = bincode::serde::encode_to_vec(self, *BINCODE_CONFIG)
+        let raw = postcard::to_allocvec(self)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
         raw.try_into()
     }
 
     fn decode(bytes: CompressedBytes) -> std::io::Result<Self> {
         let raw: Vec<u8> = bytes.try_into()?;
-        let (value, _) = bincode::serde::decode_from_slice(&raw, *BINCODE_CONFIG)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        Ok(value)
+        postcard::from_bytes(&raw)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
     }
 }
 
