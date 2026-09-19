@@ -6,7 +6,6 @@ license.workspace = true
 publish = false
 
 [dependencies]
-num-traits.workspace = true
 glam.workspace = true
 hecs.workspace = true
 data.workspace = true

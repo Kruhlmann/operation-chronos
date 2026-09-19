@@ -47,6 +47,7 @@ pub enum State {
 
 pub struct Gui {
     pub state: State,
+    pub pending_simulator: Option<Simulator>,
     pub library: AssetLibrary,
     pub next_frame_scheduled: Instant,
     pub initial_logical_size: [u32; 2],
@@ -56,10 +57,11 @@ pub struct Gui {
 }
 
 impl Gui {
-    pub fn new(library: AssetLibrary) -> Self {
+    pub fn new(library: AssetLibrary, simulator: Simulator) -> Self {
         Self {
-            state: State::Uninitialized,
+            pending_simulator: Some(simulator),
             library,
+            state: State::Uninitialized,
             next_frame_scheduled: Instant::now(),
             initial_logical_size: [800, 600],
             fps_last_frame: Instant::now(),
@@ -74,6 +76,11 @@ impl ApplicationHandler for Gui {
         if matches!(self.state, State::Running(_)) {
             return;
         }
+
+        let simulator = self
+            .pending_simulator
+            .take()
+            .expect("simulator already moved");
 
         let window = Arc::new(
             event_loop
@@ -108,8 +115,6 @@ impl ApplicationHandler for Gui {
         );
         hud.set_text(&gpu.queue, "FPS: 0", [8.0, 8.0]);
 
-        let world_state = Simulator::placeholder(surface_size);
-
         let mut renderer = WorldRenderer::new(
             &gpu.device,
             &gpu.queue,
@@ -118,16 +123,16 @@ impl ApplicationHandler for Gui {
             SPRITE_SHEET_COLUMNS,
             SPRITE_SHEET_ROWS,
             SPRITE_SIZE_PIXELS as f32,
-            &world_state.camera,
+            &simulator.camera,
         );
-        renderer.set_map(&gpu.queue, &world_state.map);
+        renderer.set_map(&gpu.queue, &simulator.map);
 
         let units = UnitScene::new(
             &gpu.device,
             &gpu.queue,
             gpu.config.format,
             &assets,
-            &world_state.camera,
+            &simulator.camera,
             SheetId::ALL,
         );
 
@@ -135,21 +140,21 @@ impl ApplicationHandler for Gui {
             &gpu.device,
             &gpu.queue,
             gpu.config.format,
-            &world_state.camera,
+            &simulator.camera,
         );
 
         let lines = LineRenderer::new(
             &gpu.device,
             &gpu.queue,
             gpu.config.format,
-            &world_state.camera,
+            &simulator.camera,
         );
 
         let debug_lines = LineRenderer::new(
             &gpu.device,
             &gpu.queue,
             gpu.config.format,
-            &world_state.camera,
+            &simulator.camera,
         );
 
         self.state = State::Running(Box::new(RunningState {
@@ -162,7 +167,7 @@ impl ApplicationHandler for Gui {
             lines,
             debug_lines,
             debug_overlay: false,
-            simulator: world_state,
+            simulator,
             input: Input::default(),
             hud,
             last_tick: Instant::now(),
@@ -192,7 +197,14 @@ impl ApplicationHandler for Gui {
         window_id: WindowId,
         event: WindowEvent,
     ) {
-        let State::Running(running) = &mut self.state else {
+        let Self {
+            state,
+            fps_last_frame,
+            avg_frame_time,
+            hud_last_update,
+            ..
+        } = self;
+        let State::Running(running) = state else {
             return;
         };
         if running.window.id() != window_id {
@@ -221,25 +233,25 @@ impl ApplicationHandler for Gui {
 
             WindowEvent::RedrawRequested => {
                 let now = Instant::now();
-                let dt = now.duration_since(self.fps_last_frame).as_secs_f32();
-                self.fps_last_frame = now;
+                let dt = now.duration_since(*fps_last_frame).as_secs_f32();
+                *fps_last_frame = now;
 
                 if dt > 0.0 {
                     const SMOOTHING: f32 = 0.1;
-                    if self.avg_frame_time == 0.0 {
-                        self.avg_frame_time = dt;
+                    if *avg_frame_time == 0.0 {
+                        *avg_frame_time = dt;
                     } else {
-                        self.avg_frame_time += SMOOTHING * (dt - self.avg_frame_time);
+                        *avg_frame_time += SMOOTHING * (dt - *avg_frame_time);
                     }
                 }
-                let refresh = now.duration_since(self.hud_last_update).as_secs_f32() >= 0.25;
+                let refresh = now.duration_since(*hud_last_update).as_secs_f32() >= 0.25;
                 if refresh {
-                    self.hud_last_update = now;
+                    *hud_last_update = now;
                 }
 
-                let frame_ms = self.avg_frame_time * 1000.0;
-                let fps = if self.avg_frame_time > 0.0 {
-                    1.0 / self.avg_frame_time
+                let frame_ms = *avg_frame_time * 1000.0;
+                let fps = if *avg_frame_time > 0.0 {
+                    1.0 / *avg_frame_time
                 } else {
                     0.0
                 };
@@ -248,10 +260,9 @@ impl ApplicationHandler for Gui {
                     let text = format!("FPS: {fps:.0}  {frame_ms:.2} MS");
                     running.hud.set_text(&running.gpu.queue, &text, [8.0, 8.0]);
                 }
-                running.hud.set_marquee(
-                    &running.gpu.queue,
-                    running.simulator.selection.marquee.as_ref(),
-                );
+                running
+                    .hud
+                    .set_marquee(&running.gpu.queue, running.simulator.selection.marquee.as_ref());
 
                 let tick_dt = now.duration_since(running.last_tick);
                 running.last_tick = now;
@@ -262,25 +273,15 @@ impl ApplicationHandler for Gui {
                     running.tick_accumulator -= TICK_TIME;
                 }
 
-                running
-                    .units
-                    .refresh(&running.gpu.queue, &running.simulator.ecs);
+                running.units.refresh(&running.gpu.queue, &running.simulator.ecs);
                 refresh_selection_markers(
                     &mut running.selection,
                     &running.gpu.queue,
                     &running.simulator.ecs,
                 );
                 if running.debug_overlay {
-                    refresh_move_lines(
-                        &mut running.lines,
-                        &running.gpu.queue,
-                        &running.simulator.ecs,
-                    );
-                    refresh_debug_overlay(
-                        &mut running.debug_lines,
-                        &running.gpu.queue,
-                        &running.simulator,
-                    );
+                    refresh_move_lines(&mut running.lines, &running.gpu.queue, &running.simulator.ecs);
+                    refresh_debug_overlay(&mut running.debug_lines, &running.gpu.queue, &running.simulator);
                 } else {
                     running.lines.set_segments(&running.gpu.queue, &[]);
                     running.debug_lines.set_segments(&running.gpu.queue, &[]);
