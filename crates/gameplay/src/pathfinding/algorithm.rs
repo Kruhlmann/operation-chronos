@@ -78,19 +78,19 @@ impl PathFindingAlgorithm for AStarPathFindingAlgorithm {
                 return Some(found_path);
             }
             let g_current = *g_score.get(&current).unwrap_or(&i32::MAX);
-            for n in map.get_tile_neighbors_unchecked(current) {
-                if !map.is_passable(n.0, n.1) {
+            for neighbor in map.get_tile_neighbors_unchecked(current) {
+                if !map.is_passable(neighbor.0, neighbor.1) {
                     continue;
                 }
                 let tentative = g_current + 1;
-                let prev = *g_score.get(&n).unwrap_or(&i32::MAX);
+                let prev = *g_score.get(&neighbor).unwrap_or(&i32::MAX);
                 if tentative < prev {
-                    came_from.insert(n, current);
-                    g_score.insert(n, tentative);
-                    let ManhattenDistance(f) = ManhattenDistance::calculate(n, goal);
+                    came_from.insert(neighbor, current);
+                    g_score.insert(neighbor, tentative);
+                    let ManhattenDistance(f) = ManhattenDistance::calculate(neighbor, goal);
                     open.push(HeapEntry {
                         f: tentative + f,
-                        node: n,
+                        node: neighbor,
                     });
                 }
             }

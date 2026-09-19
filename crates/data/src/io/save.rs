@@ -1,71 +1,79 @@
+use serde::{Serialize, de::DeserializeOwned};
+
 use crate::{
-    constants::{FILE_MAGIC_BYTES_MAP, GAME_VERSION_BINARY},
+    constants::{BINCODE_CONFIG, GAME_VERSION_BINARY},
     io::CompressedBytes,
 };
 
-pub enum SaveableFormat {
-    Map(CompressedBytes),
+pub trait Saveable: Sized + Serialize + DeserializeOwned {
+    const MAGIC: [u8; 8];
+    const EXTENSION: &'static str;
+    const KIND: &'static str;
+
+    fn encode(&self) -> std::io::Result<CompressedBytes> {
+        let raw = bincode::serde::encode_to_vec(self, *BINCODE_CONFIG)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+        raw.try_into()
+    }
+
+    fn decode(bytes: CompressedBytes) -> std::io::Result<Self> {
+        let raw: Vec<u8> = bytes.try_into()?;
+        let (value, _) = bincode::serde::decode_from_slice(&raw, *BINCODE_CONFIG)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+        Ok(value)
+    }
 }
 
-impl SaveableFormat {
-    pub fn from_read_bytes(
-        header: &[u8; 8],
-        version: &[u8; 3],
-        body: &[u8],
-    ) -> std::io::Result<Self> {
-        if *version != *GAME_VERSION_BINARY {
+#[derive(Debug, Clone, Copy)]
+pub struct SaveHeader {
+    pub magic: [u8; 8],
+    pub version: [u8; 3],
+}
+
+impl SaveHeader {
+    pub const SIZE: usize = 11;
+
+    pub fn current<T: Saveable>() -> Self {
+        Self {
+            magic: T::MAGIC,
+            version: *GAME_VERSION_BINARY,
+        }
+    }
+
+    pub fn read<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        let mut magic = [0u8; 8];
+        reader.read_exact(&mut magic)?;
+        let mut version = [0u8; 3];
+        reader.read_exact(&mut version)?;
+        Ok(Self { magic, version })
+    }
+
+    pub fn write<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        writer.write_all(&self.magic)?;
+        writer.write_all(&self.version)
+    }
+
+    pub fn verify_header<T: Saveable>(&self) -> std::io::Result<()> {
+        if self.magic != T::MAGIC {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 format!(
-                    "version mismatch - found {version:#?} expected {:#?}",
-                    *GAME_VERSION_BINARY
+                    "expected {} file (magic {:x?}) but found magic {:x?}",
+                    T::KIND,
+                    T::MAGIC,
+                    self.magic
                 ),
             ));
         }
-
-        match header {
-            b if *b == FILE_MAGIC_BYTES_MAP => Ok(Self::Map(CompressedBytes(body.to_vec()))),
-            invalid_header => Err(std::io::Error::new(
+        if self.version != *GAME_VERSION_BINARY {
+            return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
-                format!("invalid header data: {:#?}", invalid_header),
-            )),
+                format!(
+                    "version mismatch - found {:?} expected {:?}",
+                    self.version, *GAME_VERSION_BINARY
+                ),
+            ));
         }
-    }
-
-    pub fn decompress(self) -> Result<Vec<u8>, std::io::Error> {
-        // let target = match self {
-        //     SaveableFormat::Map(b) => b,
-        // };
-        let SaveableFormat::Map(target) = self;
-        let bytes: Vec<u8> = target.try_into()?;
-        Ok(bytes)
-    }
-
-    pub fn file_extension(&self) -> &str {
-        match self {
-            SaveableFormat::Map(..) => "ocmap",
-        }
-    }
-
-    pub fn header_bytes(&self) -> [u8; 8] {
-        match self {
-            SaveableFormat::Map(..) => FILE_MAGIC_BYTES_MAP,
-        }
-    }
-
-    pub fn body_bytes(self) -> Vec<u8> {
-        match self {
-            SaveableFormat::Map(b) => b.as_u8_vec(),
-        }
-    }
-}
-
-impl std::fmt::Display for SaveableFormat {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SaveableFormat::Map(bytes) => {
-                write!(f, "Map({} bytes)", bytes.len())
-            }
-        }
+        Ok(())
     }
 }

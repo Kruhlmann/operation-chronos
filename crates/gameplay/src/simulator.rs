@@ -64,7 +64,7 @@ impl Simulator {
         world
     }
 
-    fn spawn_placeholder_tanks(&mut self) {
+    pub fn spawn_placeholder_tanks(&mut self) {
         let center = self.map.world_bounds().get_center();
         let base = Vec2::new(center[0], center[1]);
         let spacing = 96.0;

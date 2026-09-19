@@ -2,11 +2,9 @@ use client::io::SaveableFormatLoader;
 use gameplay::Simulator;
 use tracing_subscriber::EnvFilter;
 
-use data::{
-    constants::{ASSET_DIRECTORY, LOG_FILTER},
-    io::SaveableFormat,
-};
+use data::constants::{ASSET_DIRECTORY, LOG_FILTER};
 use gfx::{AssetLibrary, Gui};
+use world::map::tile_map::Map;
 
 fn main() {
     let filter =
@@ -15,14 +13,12 @@ fn main() {
 
     tracing::info!("starting application");
     let map = Simulator::temp_create_map();
-    let map_data: SaveableFormat = map.try_into().unwrap();
-    SaveableFormatLoader::write_saveable(map_data, "res/maps", "testmap").unwrap();
-
-    let map_data = SaveableFormatLoader::read_saveable("./res/maps/testmap.ocmap").unwrap();
-    tracing::info!("{map_data}");
+    SaveableFormatLoader::write(&map, "res/maps", "testmap").unwrap();
+    let map: Map = SaveableFormatLoader::read("./res/maps/testmap.ocmap").unwrap();
 
     let library = AssetLibrary::load_asset_directory(ASSET_DIRECTORY).unwrap();
-    let simulator = Simulator::placeholder([800.0, 600.0]);
+    let mut simulator = Simulator::new(map, [800.0, 600.0]);
+    simulator.spawn_placeholder_tanks();
     let mut app = Gui::new(library, simulator);
     app.run().unwrap();
 }

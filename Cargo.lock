@@ -401,6 +401,7 @@ dependencies = [
  "gfx",
  "tracing",
  "tracing-subscriber",
+ "world",
 ]
 
 [[package]]

@@ -1,8 +1,10 @@
-use data::io::{CompressedBytes, SaveableFormat};
 use glam::Vec2;
 
-use data::constants::{BINCODE_CONFIG, ISOMETRIC_TILE_HALF_HEIGHT, ISOMETRIC_TILE_HALF_WIDTH};
+use data::constants::{
+    FILE_MAGIC_BYTES_MAP, ISOMETRIC_TILE_HALF_HEIGHT, ISOMETRIC_TILE_HALF_WIDTH,
+};
 use data::geometry::{Disc, Position};
+use data::io::Saveable;
 
 use crate::{Tile, TilePlacement, TilePosition, WorldBounds};
 
@@ -148,30 +150,8 @@ impl Map {
     }
 }
 
-impl TryInto<SaveableFormat> for Map {
-    type Error = std::io::Error;
-
-    fn try_into(self) -> Result<SaveableFormat, Self::Error> {
-        let self_as_u8: CompressedBytes = bincode::serde::encode_to_vec(&self, *BINCODE_CONFIG)
-            .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))?
-            .try_into()?;
-        Ok(SaveableFormat::Map(self_as_u8))
-    }
-}
-
-impl TryFrom<SaveableFormat> for Map {
-    type Error = std::io::Error;
-
-    fn try_from(value: SaveableFormat) -> Result<Self, Self::Error> {
-        // #[allow(irrefutable_let_patterns)]
-        // let SaveableFormat::Map(compressed_bytes) = value else {
-        //     panic!("invalid map");
-        // };
-        let SaveableFormat::Map(compressed_bytes) = value;
-        let decompressed_bytes: Vec<u8> = compressed_bytes.try_into()?;
-        let (map, _): (Map, usize) =
-            bincode::serde::decode_from_slice(&decompressed_bytes, *BINCODE_CONFIG)
-                .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))?;
-        Ok(map)
-    }
+impl Saveable for Map {
+    const MAGIC: [u8; 8] = FILE_MAGIC_BYTES_MAP;
+    const EXTENSION: &'static str = "ocmap";
+    const KIND: &'static str = "map";
 }
