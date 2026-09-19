@@ -260,9 +260,10 @@ impl ApplicationHandler for Gui {
                     let text = format!("FPS: {fps:.0}  {frame_ms:.2} MS");
                     running.hud.set_text(&running.gpu.queue, &text, [8.0, 8.0]);
                 }
-                running
-                    .hud
-                    .set_marquee(&running.gpu.queue, running.simulator.selection.marquee.as_ref());
+                running.hud.set_marquee(
+                    &running.gpu.queue,
+                    running.simulator.selection.marquee.as_ref(),
+                );
 
                 let tick_dt = now.duration_since(running.last_tick);
                 running.last_tick = now;
@@ -273,15 +274,25 @@ impl ApplicationHandler for Gui {
                     running.tick_accumulator -= TICK_TIME;
                 }
 
-                running.units.refresh(&running.gpu.queue, &running.simulator.ecs);
+                running
+                    .units
+                    .refresh(&running.gpu.queue, &running.simulator.ecs);
                 refresh_selection_markers(
                     &mut running.selection,
                     &running.gpu.queue,
                     &running.simulator.ecs,
                 );
                 if running.debug_overlay {
-                    refresh_move_lines(&mut running.lines, &running.gpu.queue, &running.simulator.ecs);
-                    refresh_debug_overlay(&mut running.debug_lines, &running.gpu.queue, &running.simulator);
+                    refresh_move_lines(
+                        &mut running.lines,
+                        &running.gpu.queue,
+                        &running.simulator.ecs,
+                    );
+                    refresh_debug_overlay(
+                        &mut running.debug_lines,
+                        &running.gpu.queue,
+                        &running.simulator,
+                    );
                 } else {
                     running.lines.set_segments(&running.gpu.queue, &[]);
                     running.debug_lines.set_segments(&running.gpu.queue, &[]);
