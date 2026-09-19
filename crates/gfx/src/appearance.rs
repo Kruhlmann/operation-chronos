@@ -46,12 +46,11 @@ impl SpriteRef {
         let count = self.frame_count.max(1);
         let stride = (total / count).max(1);
 
-        let two_pi = std::f32::consts::TAU;
-        let mut a = facing.0 % two_pi;
+        let mut a = facing.0 % std::f32::consts::TAU;
         if a < 0.0 {
-            a += two_pi;
+            a += std::f32::consts::TAU;
         }
-        let dir = ((a / two_pi) * count as f32).round() as u32 % count;
+        let dir = ((a / std::f32::consts::TAU) * count as f32).round() as u32 % count;
         (self.frame_base + dir * stride) % total
     }
 }

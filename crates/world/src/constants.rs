@@ -1,5 +1,7 @@
 use core::time::Duration;
 
+pub const SPRITE_SHEET_COLUMNS: u16 = 16;
+pub const SPRITE_SHEET_ROWS: u16 = 16;
 #[macro_export]
 macro_rules! sprite_index {
     ($row:expr, $col:expr) => {
@@ -9,8 +11,6 @@ macro_rules! sprite_index {
 
 pub const ASSET_DIRECTORY: &str = "res";
 pub const SPRITE_SHEET_PATH: &str = "world.png";
-pub const SPRITE_SHEET_COLUMNS: u16 = 16;
-pub const SPRITE_SHEET_ROWS: u16 = 16;
 pub const SPRITE_SIZE_PIXELS: u16 = 64;
 pub const GRASS_TOP_SPRITES: [u16; 3] = [
     sprite_index!(1, 0),
@@ -19,22 +19,20 @@ pub const GRASS_TOP_SPRITES: [u16; 3] = [
 ];
 pub const TILE_BASE_SPRITE: u16 = sprite_index!(0, 0);
 pub const ROCK_TOP_SPRITE: u16 = sprite_index!(3, 0);
+pub const TILE_SPRITE_ANCHOR: [f32; 2] = [31.0, 23.0];
 
 pub const DEFAULT_MAP_WIDTH: u16 = 64;
 pub const DEFAULT_MAP_HEIGHT: u16 = 64;
 pub const MAX_WORLD_TILES: u64 = 65_536;
-pub const ISO_TILE_HALF_WIDTH: f32 = 32.0;
-pub const ISO_TILE_HALF_HEIGHT: f32 = 16.0;
-
-/// Pixel offset from a tile sprite cell's top-left to the painted diamond's top vertex.
-pub const TILE_SPRITE_ANCHOR: [f32; 2] = [31.0, 23.0];
+pub const ISOMETRIC_TILE_HALF_WIDTH: f32 = 32.0;
+pub const ISOMETRIC_TILE_HALF_HEIGHT: f32 = 16.0;
+pub const ISOMETRIC_GROUND_SQUASH: f32 = ISOMETRIC_TILE_HALF_HEIGHT / ISOMETRIC_TILE_HALF_WIDTH;
 
 pub const CAMERA_MIN_ZOOM: f32 = 0.25;
 pub const CAMERA_MAX_ZOOM: f32 = 4.0;
 pub const CAMERA_ZOOM_STEP: f32 = 0.1;
 
-// Pixel tolerance for when to transition from considering mouse down a "Click" versus a "Drag"
-pub const PAN_DRAG_TOLERANCE: f32 = 12.0;
+pub const PAN_DRAG_TOLERANCE_PIXELS: f32 = 12.0;
 pub const PAN_DRAG_CLICK_TIME: Duration = Duration::from_millis(200);
 pub const PAN_DRAG_CLICK_TOLERANCE_PIXELS: f32 = 16.0;
 pub const ORDER_MARKER_RENDER_DURATION: Duration = Duration::from_millis(600);

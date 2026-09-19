@@ -2,8 +2,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::{
-    AssetLibrary, Gpu, GpuAssets, HudRenderer, Input, InputEventSideEffect, LineRenderer,
-    SelectionRenderer, SheetId, UnitScene, WorldRenderer,
+    AssetLibrary, Gpu, GpuAssets, HudRenderer, Input, InputEventSideEffect, LineRenderer, SheetId,
+    UnitScene, WorldRenderer,
 };
 use world::constants::{
     ASSET_DIRECTORY, FRAME_TIME, SPRITE_SHEET_COLUMNS, SPRITE_SHEET_PATH, SPRITE_SHEET_ROWS,
@@ -24,7 +24,7 @@ pub struct Running {
     pub assets: GpuAssets,
     pub renderer: WorldRenderer,
     pub units: UnitScene,
-    pub selection: SelectionRenderer,
+    pub selection: LineRenderer,
     pub lines: LineRenderer,
     pub debug_lines: LineRenderer,
     pub debug_overlay: bool,
@@ -126,7 +126,7 @@ impl ApplicationHandler for Gui {
             SheetId::ALL,
         );
 
-        let selection = SelectionRenderer::new(
+        let selection = LineRenderer::new(
             &gpu.device,
             &gpu.queue,
             gpu.config.format,
@@ -349,23 +349,34 @@ impl Gui {
     }
 }
 
-/// Team color placeholder (no team ownership yet): faint red.
-const TEAM_COLOR_PLACEHOLDER: [f32; 4] = [1.0, 0.15, 0.15, 0.45];
-const SELECTION_RADIUS: f32 = 20.0;
+const SELECTION_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 0.9];
 
-fn refresh_selection_markers(
-    renderer: &mut SelectionRenderer,
-    queue: &wgpu::Queue,
-    ecs: &hecs::World,
+fn push_disc_outline(
+    segs: &mut Vec<(glam::Vec2, glam::Vec2, [f32; 4])>,
+    disc: world::geometry::Disc,
+    color: [f32; 4],
 ) {
-    let mut items: Vec<(glam::Vec2, f32, [f32; 4])> = Vec::new();
-    for (_e, (pos, _sel)) in ecs
-        .query::<(&world::geometry::Position, &world::selection::Selected)>()
+    const SEGMENTS: usize = 24;
+    let mut points: Vec<glam::Vec2> = disc.outline(SEGMENTS).map(|p| p.0).collect();
+    points.push(points[0]);
+    for w in points.windows(2) {
+        segs.push((w[0], w[1], color));
+    }
+}
+
+fn refresh_selection_markers(renderer: &mut LineRenderer, queue: &wgpu::Queue, ecs: &hecs::World) {
+    let mut segs: Vec<(glam::Vec2, glam::Vec2, [f32; 4])> = Vec::new();
+    for (_e, (pos, fp, _sel)) in ecs
+        .query::<(
+            &world::geometry::Position,
+            &world::geometry::Footprint,
+            &world::selection::Selected,
+        )>()
         .iter()
     {
-        items.push((pos.0, SELECTION_RADIUS, TEAM_COLOR_PLACEHOLDER));
+        push_disc_outline(&mut segs, fp.disc_at(*pos), SELECTION_COLOR);
     }
-    renderer.set_markers(queue, &items);
+    renderer.set_segments(queue, &segs);
 }
 
 fn refresh_move_lines(renderer: &mut LineRenderer, queue: &wgpu::Queue, ecs: &hecs::World) {
@@ -388,12 +399,12 @@ const DEBUG_TILE_COLOR: [f32; 4] = [1.0, 0.2, 0.2, 0.9];
 const DEBUG_UNIT_COLOR: [f32; 4] = [0.2, 1.0, 0.4, 0.9];
 
 fn refresh_debug_overlay(renderer: &mut LineRenderer, queue: &wgpu::Queue, state: &world::World) {
-    use world::constants::{ISO_TILE_HALF_HEIGHT, ISO_TILE_HALF_WIDTH};
+    use world::constants::{ISOMETRIC_TILE_HALF_HEIGHT, ISOMETRIC_TILE_HALF_WIDTH};
     let mut segs: Vec<(glam::Vec2, glam::Vec2, [f32; 4])> = Vec::new();
 
     let diamond = |center: glam::Vec2, tiles: f32, color: [f32; 4], out: &mut Vec<_>| {
-        let hw = tiles * ISO_TILE_HALF_WIDTH;
-        let hh = tiles * ISO_TILE_HALF_HEIGHT;
+        let hw = tiles * ISOMETRIC_TILE_HALF_WIDTH;
+        let hh = tiles * ISOMETRIC_TILE_HALF_HEIGHT;
         let top = center + glam::Vec2::new(0.0, -hh);
         let right = center + glam::Vec2::new(hw, 0.0);
         let bottom = center + glam::Vec2::new(0.0, hh);
@@ -409,7 +420,7 @@ fn refresh_debug_overlay(renderer: &mut LineRenderer, queue: &wgpu::Queue, state
             if !state.map.is_passable(tx, ty) {
                 let [ax, ay] = world::Map::tile_to_world(tx as u16, ty as u16);
                 // tile_to_world returns the top vertex; center is one HALF_H below.
-                let center = glam::Vec2::new(ax, ay + ISO_TILE_HALF_HEIGHT);
+                let center = glam::Vec2::new(ax, ay + ISOMETRIC_TILE_HALF_HEIGHT);
                 diamond(center, 1.0, DEBUG_TILE_COLOR, &mut segs);
             }
         }
@@ -420,15 +431,7 @@ fn refresh_debug_overlay(renderer: &mut LineRenderer, queue: &wgpu::Queue, state
         .query::<(&world::geometry::Position, &world::geometry::Footprint)>()
         .iter()
     {
-        const SEGMENTS: usize = 24;
-        let r = fp.0;
-        let mut prev = pos.0 + glam::Vec2::new(r, 0.0);
-        for i in 1..=SEGMENTS {
-            let t = (i as f32) / (SEGMENTS as f32) * std::f32::consts::TAU;
-            let next = pos.0 + glam::Vec2::new(r * t.cos(), r * t.sin());
-            segs.push((prev, next, DEBUG_UNIT_COLOR));
-            prev = next;
-        }
+        push_disc_outline(&mut segs, fp.disc_at(*pos), DEBUG_UNIT_COLOR);
     }
 
     renderer.set_segments(queue, &segs);
