@@ -10,7 +10,7 @@ license = "MIT"
 [workspace.dependencies]
 world.path = "crates/world"
 gfx.path = "crates/gfx"
-launcher.path = "crates/launcher"
+client.path = "crates/client"
 gameplay.path = "crates/gameplay"
 data.path = "crates/data"
 

@@ -1,12 +1,12 @@
 [package]
-name = "launcher"
+name = "client"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
 
 [[bin]]
-name = "launcher"
+name = "client"
 path = "src/main.rs"
 
 [dependencies]

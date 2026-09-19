@@ -373,6 +373,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f079e83a288787bcd14a6aea84cee5c87a67c5a3e660c30f557a3d24761b3527"
 
 [[package]]
+name = "client"
+version = "0.0.1"
+dependencies = [
+ "data",
+ "gameplay",
+ "gfx",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "codespan-reporting"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1042,17 +1053,6 @@ name = "khronos_api"
 version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
-
-[[package]]
-name = "launcher"
-version = "0.0.1"
-dependencies = [
- "data",
- "gameplay",
- "gfx",
- "tracing",
- "tracing-subscriber",
-]
 
 [[package]]
 name = "lazy_static"
