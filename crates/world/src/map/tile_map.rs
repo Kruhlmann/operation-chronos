@@ -1,10 +1,10 @@
 use glam::Vec2;
 
+use crate::geometry::{Disc, Position};
 use crate::{
     Tile, TilePlacement, TilePosition, WorldBounds,
-    constants::{ISO_TILE_HALF_HEIGHT, ISO_TILE_HALF_WIDTH},
+    constants::{ISOMETRIC_TILE_HALF_HEIGHT, ISOMETRIC_TILE_HALF_WIDTH},
 };
-use crate::geometry::{Disc, Position};
 
 pub struct Map {
     pub width: u16,
