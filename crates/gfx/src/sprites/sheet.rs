@@ -1,12 +1,34 @@
 use crate::Asset;
 
-#[derive(Debug, Clone)]
-pub enum Sprite {
-    Animated {
-        sprites: Vec<u16>,
-        frame_duration: f32,
-    },
-    Static(u16),
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum SheetId {
+    TankBody,
+    TankTurret,
+}
+
+impl SheetId {
+    pub const ALL: &'static [SheetId] = &[SheetId::TankBody, SheetId::TankTurret];
+
+    pub fn asset_path(&self) -> &'static str {
+        match self {
+            SheetId::TankBody => "res/unit/double-barrel-tank/body.png",
+            SheetId::TankTurret => "res/unit/double-barrel-tank/turret.png",
+        }
+    }
+
+    pub fn frame_size(&self) -> (f32, f32) {
+        match self {
+            SheetId::TankBody => (70.0, 48.0),
+            SheetId::TankTurret => (62.0, 42.0),
+        }
+    }
+
+    pub fn facings(&self) -> u32 {
+        match self {
+            SheetId::TankBody => 32,
+            SheetId::TankTurret => 32,
+        }
+    }
 }
 
 pub struct SpriteSheet<T, V, S> {

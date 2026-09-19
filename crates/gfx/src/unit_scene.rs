@@ -5,7 +5,7 @@ use world::Camera;
 use world::entity::UnitKind;
 use world::geometry::{Facing, Position};
 
-use crate::appearance::{SheetId, SpritePart, SpriteRef};
+use crate::sprites::{SheetId, SpritePart, SpriteRef};
 use crate::{GpuAssets, UnitRenderer};
 
 pub struct UnitScene {
