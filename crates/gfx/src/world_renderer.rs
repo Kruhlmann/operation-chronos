@@ -209,8 +209,8 @@ impl WorldRenderer {
         let mut instances: Vec<TileInstance> = Vec::with_capacity(placements.len());
         for p in placements {
             let anchor = [
-                p.world_pos[0] - TILE_SPRITE_ANCHOR[0],
-                p.world_pos[1] - TILE_SPRITE_ANCHOR[1],
+                p.world_position[0] - TILE_SPRITE_ANCHOR[0],
+                p.world_position[1] - TILE_SPRITE_ANCHOR[1],
             ];
             instances.push(TileInstance {
                 data: [anchor[0], anchor[1], p.sprite_index as f32, 0.0],

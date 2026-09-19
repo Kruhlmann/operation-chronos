@@ -1,51 +1,9 @@
 use glam::Vec2;
 
-use crate::constants::{
-    GRASS_TOP_SPRITES, ISO_TILE_HALF_HEIGHT, ISO_TILE_HALF_WIDTH, ROCK_TOP_SPRITE, TILE_BASE_SPRITE,
+use crate::{
+    Tile, TilePlacement, TilePosition, WorldBounds,
+    constants::{ISO_TILE_HALF_HEIGHT, ISO_TILE_HALF_WIDTH},
 };
-
-pub enum Tile {
-    Void,
-    Grass { variant: u8 },
-    Rock,
-}
-
-impl Tile {
-    pub fn sprite_layers(&self) -> Vec<u16> {
-        match self {
-            Tile::Void => Vec::new(),
-            Tile::Grass { variant } => {
-                let top = GRASS_TOP_SPRITES[(*variant as usize) % GRASS_TOP_SPRITES.len()];
-                vec![TILE_BASE_SPRITE, top]
-            }
-            Tile::Rock => vec![TILE_BASE_SPRITE, ROCK_TOP_SPRITE],
-        }
-    }
-
-    pub fn is_passable(&self) -> bool {
-        matches!(self, Tile::Grass { .. })
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct WorldBounds {
-    pub min: [f32; 2],
-    pub max: [f32; 2],
-}
-
-impl WorldBounds {
-    pub fn center(&self) -> [f32; 2] {
-        [
-            (self.min[0] + self.max[0]) * 0.5,
-            (self.min[1] + self.max[1]) * 0.5,
-        ]
-    }
-}
-
-pub struct TilePlacement {
-    pub world_pos: [f32; 2],
-    pub sprite_index: u16,
-}
 
 pub struct Map {
     pub width: u16,
@@ -57,8 +15,6 @@ pub struct Map {
 pub enum MapInitError {
     MapSizeIncorrect(u16, u16, usize),
 }
-
-pub type TilePosition = (i32, i32);
 
 impl Map {
     pub fn new(width: u16, height: u16, tiles: Vec<Tile>) -> Result<Self, MapInitError> {
@@ -181,7 +137,7 @@ impl Map {
                     depth,
                     layer,
                     TilePlacement {
-                        world_pos,
+                        world_position: world_pos,
                         sprite_index,
                     },
                 ));

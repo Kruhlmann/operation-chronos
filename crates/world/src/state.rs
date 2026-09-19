@@ -28,7 +28,7 @@ impl World {
         let bounds = map.world_bounds();
         let mut camera = Camera::new(viewport);
         camera.set_bounds(bounds);
-        camera.set_center(bounds.center());
+        camera.set_center(bounds.get_center());
         Self {
             map,
             camera,
@@ -63,7 +63,7 @@ impl World {
     }
 
     fn spawn_placeholder_tanks(&mut self) {
-        let center = self.map.world_bounds().center();
+        let center = self.map.world_bounds().get_center();
         let base = Vec2::new(center[0], center[1]);
         let spacing = 96.0;
         for i in -1..=1_i32 {
