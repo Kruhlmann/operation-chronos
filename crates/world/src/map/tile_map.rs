@@ -11,7 +11,7 @@ pub struct Map {
     pub tiles: Vec<Tile>,
 }
 
-#[derive()]
+#[derive(Debug)]
 pub enum MapInitError {
     MapSizeIncorrect(u16, u16, usize),
 }
