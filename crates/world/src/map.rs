@@ -53,7 +53,25 @@ pub struct Map {
     pub tiles: Vec<Tile>,
 }
 
+#[derive(Debug)]
+pub enum MapInitError {
+    MapSizeIncorrect(u16, u16, usize),
+}
+
+pub type TilePosition = (i32, i32);
+
 impl Map {
+    pub fn new(width: u16, height: u16, tiles: Vec<Tile>) -> Result<Self, MapInitError> {
+        if tiles.len() != (width as usize) * (height as usize) {
+            return Err(MapInitError::MapSizeIncorrect(width, height, tiles.len()));
+        }
+        Ok(Map {
+            width,
+            height,
+            tiles,
+        })
+    }
+
     pub fn tile_to_world(x: u16, y: u16) -> [f32; 2] {
         let fx = x as f32;
         let fy = y as f32;
@@ -63,7 +81,37 @@ impl Map {
         ]
     }
 
-    pub fn get_world_tile_at(p: Vec2) -> (i32, i32) {
+    pub fn get_tile_neighbors_unchecked(&self, tile: TilePosition) -> [TilePosition; 4] {
+        [
+            (tile.0 + 1, tile.1),
+            (tile.0 - 1, tile.1),
+            (tile.0, tile.1 + 1),
+            (tile.0, tile.1 - 1),
+        ]
+    }
+
+    pub fn find_nearest_passable_tile_in_radius(
+        &self,
+        goal: TilePosition,
+        radius: i32,
+    ) -> Option<TilePosition> {
+        for r in 1..=radius {
+            for dy in -r..=r {
+                for dx in -r..=r {
+                    if dx.abs() != r && dy.abs() != r {
+                        continue;
+                    }
+                    let n = (goal.0 + dx, goal.1 + dy);
+                    if self.is_passable(n.0, n.1) {
+                        return Some(n);
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    pub fn get_world_tile_at(p: Vec2) -> TilePosition {
         //   ( (tx-ty)*HALF_W, (tx+ty)*HALF_H + HALF_H )
         let a = p.x / ISO_TILE_HALF_WIDTH; //  tx - ty
         let b = (p.y - ISO_TILE_HALF_HEIGHT) / ISO_TILE_HALF_HEIGHT; //  tx + ty

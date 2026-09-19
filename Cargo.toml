@@ -17,6 +17,7 @@ glam = "0.29"
 hecs = "0.10"
 image = "0.25"
 lazy_static = "1.5.0"
+num-traits = "0.2"
 pollster = "1.0.1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

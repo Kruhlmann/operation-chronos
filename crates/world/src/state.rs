@@ -2,16 +2,15 @@ use core::time::Duration;
 use glam::Vec2;
 
 use crate::camera::Camera;
-use crate::constants::{
-    DEFAULT_MAP_HEIGHT, DEFAULT_MAP_WIDTH, ISO_TILE_HALF_HEIGHT, ORDER_MARKER_RENDER_DURATION,
-};
+use crate::constants::{DEFAULT_MAP_HEIGHT, DEFAULT_MAP_WIDTH, ORDER_MARKER_RENDER_DURATION};
 use crate::entity::UnitKind;
 use crate::geometry::{Facing, Footprint, Position};
 use crate::map::{Map, Tile};
 use crate::order::{MoveMarker, Speed, UnitOrder};
-use crate::pathfinding;
+use crate::pathfinding::{AStarPathFindingAlgorithm, PathFinder, PathFindingResult, Waypoints};
 use crate::selection::{Marquee, Selected, Selection, aabb_contains, point_hits};
 
+const NEAREST_PASSABLE_TILE_SEARCH_RADIUS: i32 = 8;
 const UNIT_PICK_RADIUS: f32 = 32.0;
 const TANK_SPEED: f32 = 120.0;
 /// Collision/footprint radius in world pixels.
@@ -302,7 +301,10 @@ impl World {
         }
 
         let nearest_goal_tile = Map::get_world_tile_at(target);
-        let goal = match pathfinding::nearest_passable(&self.map, nearest_goal_tile, 8) {
+        let goal = match self.map.find_nearest_passable_tile_in_radius(
+            nearest_goal_tile,
+            NEAREST_PASSABLE_TILE_SEARCH_RADIUS,
+        ) {
             Some(g) => g,
             None => return,
         };
@@ -313,10 +315,12 @@ impl World {
                 Err(_) => continue,
             };
             let start_tile = Map::get_world_tile_at(start_pos);
-            let Some(tile_path) = pathfinding::find_path(&self.map, start_tile, goal) else {
+            let PathFindingResult::Path(tile_path) =
+                PathFinder::find_path::<AStarPathFindingAlgorithm>(&self.map, start_tile, goal)
+            else {
                 continue;
             };
-            let waypoints = build_waypoints(start_pos, &tile_path, target);
+            let Waypoints(waypoints) = Waypoints::compute_from_path(start_pos, target, &tile_path);
             let final_target = *waypoints.last().unwrap_or(&target);
             let _ = self.ecs.insert_one(e, UnitOrder::path(waypoints));
             self.ecs.spawn((MoveMarker {
@@ -341,21 +345,4 @@ impl World {
             let _ = self.ecs.insert_one(e, Selected);
         }
     }
-}
-
-fn build_waypoints(start_pos: Vec2, tile_path: &[(i32, i32)], precise_goal: Vec2) -> Vec<Vec2> {
-    let mut out: Vec<Vec2> = Vec::new();
-    if tile_path.len() <= 1 {
-        out.push(precise_goal);
-        return out;
-    }
-    for &(tx, ty) in tile_path.iter().skip(1) {
-        let [ax, ay] = Map::tile_to_world(tx as u16, ty as u16);
-        out.push(Vec2::new(ax, ay + ISO_TILE_HALF_HEIGHT));
-    }
-    if let Some(last) = out.last_mut() {
-        *last = precise_goal;
-    }
-    let _ = start_pos;
-    out
 }

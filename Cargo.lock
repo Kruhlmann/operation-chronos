@@ -3321,6 +3321,7 @@ version = "0.0.1"
 dependencies = [
  "glam",
  "hecs",
+ "num-traits",
 ]
 
 [[package]]
