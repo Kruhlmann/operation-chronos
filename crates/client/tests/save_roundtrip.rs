@@ -1,6 +1,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use client::io::SaveableFormatLoader;
+use data::io::Saveable;
 use world::Tile;
 use world::map::tile_map::Map;
 
@@ -74,7 +75,7 @@ fn reading_corrupted_magic_errors() {
 fn write_uses_declared_extension() {
     let dir = unique_dir("ext");
     let map = sample_map();
-    // Pass a name without extension; loader should append `.ocmap`.
     SaveableFormatLoader::write(&map, dir.to_str().unwrap(), "no_ext").unwrap();
-    assert!(dir.join("no_ext.ocmap").exists());
+    let expected_extension = Map::EXTENSION;
+    assert!(dir.join(format!("no_ext.{expected_extension}")).exists());
 }
