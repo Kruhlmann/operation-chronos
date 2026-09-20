@@ -7,12 +7,12 @@ use world::entity::{Health, Name, Speed, UnitKind, UnitMoveInstructions, UnitMov
 use world::{Map, Tile};
 
 use crate::pathfinding::{AStarPathFindingAlgorithm, PathFinder, PathFindingResult, Waypoints};
-use crate::sim::collision::resolve_collisions;
+use crate::sim::capabilities::{
+    UnitCollisionHandler, UnitMovementHandler, UnitMovementMarkerHandler,
+};
 use crate::sim::command::{
     CommandLog, PlayerCommand, TICK_DELAY_BEFORE_COMMAND_TAKES_EFFECT, Tick,
 };
-use crate::sim::markers::tick_markers;
-use crate::sim::movement::run_movement;
 use crate::sim::scheduler::PendingCommands;
 
 pub const UNIT_PICK_RADIUS: Scalar = Scalar::const_from_int(32);
@@ -87,9 +87,9 @@ impl Sim {
             self.apply(&cmd);
             self.log.record(tick, cmd);
         }
-        run_movement(&mut self.ecs, &self.map);
-        resolve_collisions(&mut self.ecs, &self.map);
-        tick_markers(&mut self.ecs, dt);
+        self.tick_movement();
+        self.tick_movement_markers(dt);
+        self.tick_collision();
         self.current_tick += 1;
     }
 

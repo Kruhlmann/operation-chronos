@@ -10,12 +10,6 @@ use glam::Vec2;
 
 use crate::sim::{PlayerCommand, Sim, UNIT_PICK_RADIUS};
 
-/// Non-authoritative, per-client view state.
-///
-/// Under lockstep every peer runs the same [`Sim`] but each peer has its own
-/// camera, marquee and selection list. Nothing on `ClientView` is allowed to
-/// mutate the ECS directly; state-affecting user actions are funnelled
-/// through [`Sim::submit`] as [`Command`]s.
 pub struct ClientView {
     pub camera: Camera,
     pub selection: Selection,
@@ -49,9 +43,6 @@ impl ClientView {
         self.selection.marquee = None;
     }
 
-    /// Commit the currently-active marquee: box-selects all entities whose
-    /// world position falls inside the rectangle. Purely client-local — the
-    /// sim never sees the marquee.
     pub fn commit_marquee(&mut self, sim: &Sim) {
         let Some(m) = self.selection.marquee.take() else {
             return;
@@ -70,9 +61,6 @@ impl ClientView {
         self.selection.replace(hits);
     }
 
-    /// Left-click pick. Selects the closest unit within
-    /// [`UNIT_PICK_RADIUS`]. Nothing is submitted to the sim — selection is
-    /// entirely a client concern.
     pub fn click_select(&mut self, sim: &Sim, screen: [f32; 2]) {
         let world_render = self.camera.screen_to_world(screen);
         let world_point = Position::from_render(Vec2::new(world_render[0], world_render[1]));
@@ -91,10 +79,6 @@ impl ClientView {
             .replace(best.into_iter().map(|(e, _)| e).collect());
     }
 
-    /// Right-click order. Constructs a [`Command::Move`] targeting the
-    /// currently-selected entities and hands it to the sim, which will
-    /// schedule it for `current_tick + COMMAND_DELAY_TICKS` and apply it in
-    /// the appropriate future tick.
     pub fn click_order(&mut self, sim: &mut Sim, screen: [f32; 2]) {
         if self.selection.selected.is_empty() {
             return;

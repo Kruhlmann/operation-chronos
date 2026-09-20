@@ -1,14 +1,5 @@
-//! Deterministic simulation core.
-//!
-//! Everything under this module runs identically on every peer given the
-//! same [`command::Command`] stream and initial state. Non-deterministic
-//! types (like `std::collections::HashMap`) are forbidden here — use
-//! `BTreeMap` or `Vec` instead.
-
-pub mod collision;
+pub mod capabilities;
 pub mod command;
-pub mod markers;
-pub mod movement;
 pub mod scheduler;
 pub mod world;
 
