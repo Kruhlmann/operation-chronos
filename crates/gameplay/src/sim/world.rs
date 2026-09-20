@@ -84,8 +84,8 @@ impl Sim {
             .pending
             .drain_player_commands_until_tick(self.current_tick);
         for (tick, cmd) in ready {
-            self.apply(&cmd);
-            self.log.record(tick, cmd);
+            self.apply_player_command(&cmd);
+            self.log.record_player_command(tick, cmd);
         }
         self.tick_movement();
         self.tick_movement_markers(dt);
@@ -93,13 +93,13 @@ impl Sim {
         self.current_tick += 1;
     }
 
-    fn apply(&mut self, command: &PlayerCommand) {
+    fn apply_player_command(&mut self, command: &PlayerCommand) {
         match command {
-            PlayerCommand::Move { units, target } => self.apply_move(units, *target),
+            PlayerCommand::Move { units, target } => self.apply_movement_command(units, *target),
         }
     }
 
-    fn apply_move(&mut self, units: &[hecs::Entity], target: FixedVec2) {
+    fn apply_movement_command(&mut self, units: &[hecs::Entity], target: FixedVec2) {
         let existing_move_markers: Vec<hecs::Entity> = self
             .ecs
             .query::<&UnitMovementMarker>()

@@ -19,7 +19,7 @@ pub struct CommandLog {
 }
 
 impl CommandLog {
-    pub fn record(&mut self, tick: Tick, command: PlayerCommand) {
+    pub fn record_player_command(&mut self, tick: Tick, command: PlayerCommand) {
         self.history.entry(tick).or_default().push(command);
     }
 
