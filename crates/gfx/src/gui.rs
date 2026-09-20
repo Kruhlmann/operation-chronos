@@ -2,8 +2,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::{
-    AssetLibrary, Gpu, GpuAssets, HudRenderer, Input, InputEventSideEffect, LineRenderer, SheetId,
-    UnitScene, WorldRenderer,
+    AssetLibrary, Gpu, GpuAssets, HudRenderer, Input, InputEventSideEffect, LineRenderer,
+    SelectionEntry, SheetId, UnitScene, WorldRenderer,
 };
 use data::constants::{
     ASSET_DIRECTORY, FRAME_TIME, SPRITE_SHEET_COLUMNS, SPRITE_SHEET_PATH, SPRITE_SHEET_ROWS,
@@ -21,7 +21,7 @@ use winit::{
     window::{Window, WindowId},
 };
 use world::Map;
-use world::entity::UnitOrder;
+use world::entity::{Health, Name, UnitKind, UnitOrder};
 
 pub struct RunningState {
     pub window: Arc<Window>,
@@ -265,6 +265,25 @@ impl ApplicationHandler for Gui {
                     running.simulator.selection.marquee.as_ref(),
                 );
 
+                let selection_entries: Vec<SelectionEntry> = running
+                    .simulator
+                    .ecs
+                    .query::<(&Selected, &UnitKind, &Name, &Health)>()
+                    .iter()
+                    .map(|(_, (_, kind, name, hp))| SelectionEntry {
+                        kind: *kind,
+                        name: name.0,
+                        health_fraction: hp.fraction(),
+                    })
+                    .collect();
+                let viewport = [
+                    running.gpu.config.width as f32,
+                    running.gpu.config.height as f32,
+                ];
+                running
+                    .hud
+                    .set_selection_panel(&running.gpu.queue, viewport, &selection_entries);
+
                 let tick_dt = now.duration_since(running.last_tick);
                 running.last_tick = now;
                 running.tick_accumulator =
@@ -354,8 +373,18 @@ impl ApplicationHandler for Gui {
                         .lines
                         .set_camera(&running.gpu.queue, &running.simulator.camera);
                 }
-                Some(InputEventSideEffect::ClickLeft(p)) => running.simulator.click_select(p),
-                Some(InputEventSideEffect::ClickRight(p)) => running.simulator.click_order(p),
+                Some(InputEventSideEffect::ClickLeft(p))
+                    if !is_in_selection_panel(p, &running.gpu) =>
+                {
+                    running.simulator.click_select(p)
+                }
+                Some(InputEventSideEffect::ClickRight(p))
+                    if !is_in_selection_panel(p, &running.gpu) =>
+                {
+                    running.simulator.click_order(p)
+                }
+                Some(InputEventSideEffect::ClickLeft(_))
+                | Some(InputEventSideEffect::ClickRight(_)) => {}
                 None => {}
             },
         }
@@ -372,6 +401,11 @@ impl Gui {
 }
 
 const SELECTION_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 0.9];
+
+fn is_in_selection_panel(cursor: [f32; 2], gpu: &Gpu) -> bool {
+    let panel_top = crate::renderer::hud::selection_panel_top(gpu.config.height as f32);
+    cursor[1] >= panel_top
+}
 
 fn push_disc_outline(
     segs: &mut Vec<(glam::Vec2, glam::Vec2, [f32; 4])>,
@@ -435,7 +469,6 @@ fn refresh_debug_overlay(
         for tx in 0..state.map.width as i32 {
             if !state.map.is_passable(tx, ty) {
                 let [ax, ay] = Map::tile_to_world(tx as u16, ty as u16);
-                // tile_to_world returns the top vertex; center is one HALF_H below.
                 let center = glam::Vec2::new(ax, ay + ISOMETRIC_TILE_HALF_HEIGHT);
                 diamond(center, 1.0, DEBUG_TILE_COLOR, &mut segs);
             }

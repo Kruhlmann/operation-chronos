@@ -1,5 +1,20 @@
-use data::constants::{FONT_CHARSET, FONT_GLYPH_SIZE, FONT_MAX_CHARACTERS};
+use data::constants::{
+    FONT_CHARSET, FONT_GLYPH_SIZE, FONT_MAX_CHARACTERS, SELECTION_PANEL_HEIGHT,
+    SELECTION_PANEL_MAX_SLOTS, SELECTION_PANEL_PADDING, SELECTION_PORTRAIT_GAP,
+    SELECTION_PORTRAIT_SIZE,
+};
 use gameplay::Marquee;
+use world::entity::UnitKind;
+
+#[derive(Clone, Copy)]
+pub struct SelectionEntry {
+    pub kind: UnitKind,
+    pub name: &'static str,
+    pub health_fraction: f32,
+}
+
+const PANEL_RECTS_CAPACITY: usize = 1 + SELECTION_PANEL_MAX_SLOTS * 4;
+const PANEL_GLYPHS_CAPACITY: usize = FONT_MAX_CHARACTERS;
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -38,6 +53,11 @@ pub struct HudRenderer {
     rect_bind_group: wgpu::BindGroup,
     rect_instance_buffer: wgpu::Buffer,
     rect_visible: bool,
+
+    panel_rect_buffer: wgpu::Buffer,
+    panel_rect_count: u32,
+    panel_glyph_buffer: wgpu::Buffer,
+    panel_glyph_count: u32,
 }
 
 impl HudRenderer {
@@ -205,6 +225,20 @@ impl HudRenderer {
             mapped_at_creation: false,
         });
 
+        let panel_rect_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("hud panel rects"),
+            size: (std::mem::size_of::<RectInstance>() * PANEL_RECTS_CAPACITY) as u64,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let panel_glyph_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("hud panel glyphs"),
+            size: (std::mem::size_of::<GlyphInstance>() * PANEL_GLYPHS_CAPACITY) as u64,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
         let rect_instance_layout = wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<RectInstance>() as u64,
             step_mode: wgpu::VertexStepMode::Instance,
@@ -269,6 +303,10 @@ impl HudRenderer {
             rect_bind_group,
             rect_instance_buffer,
             rect_visible: false,
+            panel_rect_buffer,
+            panel_rect_count: 0,
+            panel_glyph_buffer,
+            panel_glyph_count: 0,
         };
         renderer.upload_uniform(queue, surface_size);
         renderer
@@ -345,6 +383,18 @@ impl HudRenderer {
             render_pass.set_vertex_buffer(0, self.rect_instance_buffer.slice(..));
             render_pass.draw(0..6, 0..1);
         }
+        if self.panel_rect_count > 0 {
+            render_pass.set_pipeline(&self.rect_pipeline);
+            render_pass.set_bind_group(0, &self.rect_bind_group, &[]);
+            render_pass.set_vertex_buffer(0, self.panel_rect_buffer.slice(..));
+            render_pass.draw(0..6, 0..self.panel_rect_count);
+        }
+        if self.panel_glyph_count > 0 {
+            render_pass.set_pipeline(&self.pipeline);
+            render_pass.set_bind_group(0, &self.bind_group, &[]);
+            render_pass.set_vertex_buffer(0, self.panel_glyph_buffer.slice(..));
+            render_pass.draw(0..6, 0..self.panel_glyph_count);
+        }
         if self.instance_count == 0 {
             return;
         }
@@ -352,6 +402,147 @@ impl HudRenderer {
         render_pass.set_bind_group(0, &self.bind_group, &[]);
         render_pass.set_vertex_buffer(0, self.instance_buffer.slice(..));
         render_pass.draw(0..6, 0..self.instance_count);
+    }
+}
+
+fn glyph_index(ch: char) -> Option<usize> {
+    let upper = ch.to_ascii_uppercase() as u8;
+    FONT_CHARSET.iter().position(|&c| c == upper)
+}
+
+fn push_text(
+    glyphs: &mut Vec<GlyphInstance>,
+    text: &str,
+    origin: [f32; 2],
+    scale: f32,
+    max_width_px: f32,
+) {
+    let advance = FONT_GLYPH_SIZE as f32 * scale;
+    let mut pen_x = origin[0];
+    for ch in text.chars() {
+        if pen_x + advance > origin[0] + max_width_px {
+            break;
+        }
+        if let Some(index) = glyph_index(ch) {
+            glyphs.push(GlyphInstance {
+                data: [pen_x, origin[1], index as f32, 0.0],
+            });
+        }
+        pen_x += advance;
+        if glyphs.len() >= PANEL_GLYPHS_CAPACITY {
+            break;
+        }
+    }
+}
+
+fn kind_color(kind: UnitKind) -> [f32; 4] {
+    match kind {
+        UnitKind::Tank => [0.55, 0.45, 0.30, 1.0],
+    }
+}
+
+impl HudRenderer {
+    /// Rebuild the bottom selection panel geometry. Pass an empty slice to hide.
+    pub fn set_selection_panel(
+        &mut self,
+        queue: &wgpu::Queue,
+        surface_size: [f32; 2],
+        entries: &[SelectionEntry],
+    ) {
+        if entries.is_empty() {
+            self.panel_rect_count = 0;
+            self.panel_glyph_count = 0;
+            return;
+        }
+
+        let surface_w = surface_size[0];
+        let surface_h = surface_size[1];
+        let panel_top = surface_h - SELECTION_PANEL_HEIGHT;
+
+        let mut rects: Vec<RectInstance> = Vec::with_capacity(PANEL_RECTS_CAPACITY);
+        let mut glyphs: Vec<GlyphInstance> = Vec::with_capacity(64);
+
+        // Panel background.
+        rects.push(RectInstance {
+            rect: [0.0, panel_top, surface_w, SELECTION_PANEL_HEIGHT],
+            fill: [0.05, 0.06, 0.09, 0.85],
+            border: [0.35, 0.55, 0.65, 0.90],
+            params: [2.0, 0.0, 0.0, 0.0],
+        });
+
+        // Portrait grid layout.
+        let inner_x = SELECTION_PANEL_PADDING;
+        let inner_y = panel_top + SELECTION_PANEL_PADDING;
+        let inner_w = (surface_w - 2.0 * SELECTION_PANEL_PADDING).max(0.0);
+        let slot_stride = SELECTION_PORTRAIT_SIZE + SELECTION_PORTRAIT_GAP;
+        let cols = ((inner_w + SELECTION_PORTRAIT_GAP) / slot_stride).floor() as usize;
+        let cols = cols.max(1);
+
+        let slot_count = entries.len().min(SELECTION_PANEL_MAX_SLOTS);
+        for (i, e) in entries.iter().copied().enumerate().take(slot_count) {
+            let col = i % cols;
+            let row = i / cols;
+            let x = inner_x + col as f32 * slot_stride;
+            let y = inner_y + row as f32 * slot_stride;
+            if y + SELECTION_PORTRAIT_SIZE > panel_top + SELECTION_PANEL_HEIGHT {
+                break;
+            }
+
+            // Portrait background (kind-tinted).
+            let tint = kind_color(e.kind);
+            rects.push(RectInstance {
+                rect: [x, y, SELECTION_PORTRAIT_SIZE, SELECTION_PORTRAIT_SIZE],
+                fill: tint,
+                border: [0.85, 0.90, 0.95, 0.90],
+                params: [1.5, 0.0, 0.0, 0.0],
+            });
+
+            // Health bar (bottom of slot).
+            let bar_h = 5.0;
+            let bar_y = y + SELECTION_PORTRAIT_SIZE - bar_h - 2.0;
+            let bar_x = x + 2.0;
+            let bar_w = SELECTION_PORTRAIT_SIZE - 4.0;
+            rects.push(RectInstance {
+                rect: [bar_x, bar_y, bar_w, bar_h],
+                fill: [0.10, 0.10, 0.10, 0.90],
+                border: [0.0, 0.0, 0.0, 0.0],
+                params: [0.0, 0.0, 0.0, 0.0],
+            });
+            let frac = e.health_fraction.clamp(0.0, 1.0);
+            let fill_color = if frac > 0.5 {
+                [0.20, 0.85, 0.25, 1.0]
+            } else if frac > 0.25 {
+                [0.95, 0.80, 0.15, 1.0]
+            } else {
+                [0.90, 0.20, 0.15, 1.0]
+            };
+            if frac > 0.0 {
+                rects.push(RectInstance {
+                    rect: [bar_x, bar_y, bar_w * frac, bar_h],
+                    fill: fill_color,
+                    border: [0.0, 0.0, 0.0, 0.0],
+                    params: [0.0, 0.0, 0.0, 0.0],
+                });
+            }
+
+            // Name label above the health bar.
+            let label_scale = 1.0;
+            let label_y = y + 4.0;
+            push_text(
+                &mut glyphs,
+                e.name,
+                [x + 4.0, label_y],
+                label_scale,
+                SELECTION_PORTRAIT_SIZE - 8.0,
+            );
+        }
+
+        self.panel_rect_count = rects.len() as u32;
+        queue.write_buffer(&self.panel_rect_buffer, 0, bytemuck::cast_slice(&rects));
+        self.panel_glyph_count = glyphs.len() as u32;
+        if !glyphs.is_empty() {
+            queue.write_buffer(&self.panel_glyph_buffer, 0, bytemuck::cast_slice(&glyphs));
+        }
     }
 }
 

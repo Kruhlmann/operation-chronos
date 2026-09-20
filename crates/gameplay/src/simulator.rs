@@ -7,7 +7,7 @@ use data::{
 use glam::Vec2;
 use world::{
     Map, Tile,
-    entity::{MoveMarker, Speed, UnitKind, UnitOrder},
+    entity::{Health, MoveMarker, Name, Speed, UnitKind, UnitOrder},
 };
 
 const NEAREST_PASSABLE_TILE_SEARCH_RADIUS: i32 = 8;
@@ -15,6 +15,7 @@ const UNIT_PICK_RADIUS: f32 = 32.0;
 const TANK_SPEED: f32 = 120.0;
 const TANK_FOOTPRINT: f32 = 14.0;
 const TANK_FOOTPRINT_OFFSET: Vec2 = Vec2::new(0.0, 0.0);
+const TANK_MAX_HEALTH: f32 = 100.0;
 
 use crate::{
     camera::Camera,
@@ -103,6 +104,8 @@ impl Simulator {
             UnitKind::Tank,
             Speed(TANK_SPEED),
             Self::tank_footprint(),
+            Name("TANK"),
+            Health::new(TANK_MAX_HEALTH),
         ))
     }
 
@@ -126,8 +129,6 @@ impl Simulator {
                 for j in (i + 1)..units.len() {
                     let a = units[i].2.disc_at(units[i].1);
                     let b = units[j].2.disc_at(units[j].1);
-                    // Overlap and separation are computed on the ground plane,
-                    // so they match the on-screen iso ellipse footprint.
                     let Some(sep) = a.separation(&b) else {
                         continue;
                     };
