@@ -1,18 +1,22 @@
 use std::{
     cmp::Ordering,
-    collections::{BinaryHeap, HashMap},
-    ops::{Add, Sub},
+    collections::{BTreeMap, BinaryHeap},
 };
-
-use num_traits::Signed;
 
 use world::map::{Map, TilePosition};
 
-pub struct ManhattenDistance<T>(T);
+pub struct OctileDistance(pub i32);
 
-impl<T: Add + Sub + Signed> ManhattenDistance<T> {
-    pub fn calculate(a: (T, T), b: (T, T)) -> ManhattenDistance<T> {
-        ManhattenDistance((a.0 - b.0).abs() + (a.1 - b.1).abs())
+impl OctileDistance {
+    pub const CONST_UNIT: i32 = 1000;
+    /// `~sqrt(2) * UNIT`.
+    pub const COST_DIAGONAL_UNIT: i32 = 1414;
+
+    pub fn calculate(a: TilePosition, b: TilePosition) -> Self {
+        let dx = (a.0 - b.0).abs();
+        let dy = (a.1 - b.1).abs();
+        let (min, max) = if dx < dy { (dx, dy) } else { (dy, dx) };
+        Self(Self::CONST_UNIT * (max - min) + Self::COST_DIAGONAL_UNIT * min)
     }
 }
 
@@ -32,7 +36,10 @@ pub struct HeapEntry {
 
 impl Ord for HeapEntry {
     fn cmp(&self, other: &Self) -> Ordering {
-        other.f.cmp(&self.f)
+        other
+            .f
+            .cmp(&self.f)
+            .then_with(|| other.node.cmp(&self.node))
     }
 }
 
@@ -46,7 +53,7 @@ pub struct AStarPathFindingAlgorithm;
 
 impl AStarPathFindingAlgorithm {
     fn reconstruct_path(
-        came_from: &HashMap<TilePosition, TilePosition>,
+        came_from: &BTreeMap<TilePosition, TilePosition>,
         mut current: TilePosition,
     ) -> Vec<TilePosition> {
         let mut path = vec![current];
@@ -57,6 +64,17 @@ impl AStarPathFindingAlgorithm {
         path.reverse();
         path
     }
+
+    #[inline]
+    fn step_cost(from: TilePosition, to: TilePosition) -> i32 {
+        let dx = (from.0 - to.0).abs();
+        let dy = (from.1 - to.1).abs();
+        if dx + dy == 2 {
+            OctileDistance::COST_DIAGONAL_UNIT
+        } else {
+            OctileDistance::CONST_UNIT
+        }
+    }
 }
 
 impl PathFindingAlgorithm for AStarPathFindingAlgorithm {
@@ -66,10 +84,10 @@ impl PathFindingAlgorithm for AStarPathFindingAlgorithm {
         goal: TilePosition,
     ) -> Option<Vec<TilePosition>> {
         let mut open: BinaryHeap<HeapEntry> = BinaryHeap::new();
-        let mut came_from: HashMap<TilePosition, TilePosition> = HashMap::new();
-        let mut g_score: HashMap<TilePosition, i32> = HashMap::new();
+        let mut came_from: BTreeMap<TilePosition, TilePosition> = BTreeMap::new();
+        let mut g_score: BTreeMap<TilePosition, i32> = BTreeMap::new();
         g_score.insert(start, 0);
-        let ManhattenDistance(f) = ManhattenDistance::calculate(start, goal);
+        let OctileDistance(f) = OctileDistance::calculate(start, goal);
         open.push(HeapEntry { f, node: start });
 
         while let Some(HeapEntry { node: current, .. }) = open.pop() {
@@ -78,18 +96,30 @@ impl PathFindingAlgorithm for AStarPathFindingAlgorithm {
                 return Some(found_path);
             }
             let g_current = *g_score.get(&current).unwrap_or(&i32::MAX);
-            for neighbor in map.get_tile_neighbors_unchecked(current) {
+            for neighbor in map.get_tile_neighbors_unchecked_octile(current) {
                 if !map.is_passable(neighbor.0, neighbor.1) {
                     continue;
                 }
-                let tentative = g_current + 1;
+                // Forbid corner-cutting: a diagonal step is only legal when
+                // both orthogonal neighbours it slips between are also
+                // passable.
+                let dx = neighbor.0 - current.0;
+                let dy = neighbor.1 - current.1;
+                if dx != 0
+                    && dy != 0
+                    && (!map.is_passable(current.0 + dx, current.1)
+                        || !map.is_passable(current.0, current.1 + dy))
+                {
+                    continue;
+                }
+                let tentative = g_current + Self::step_cost(current, neighbor);
                 let prev = *g_score.get(&neighbor).unwrap_or(&i32::MAX);
                 if tentative < prev {
                     came_from.insert(neighbor, current);
                     g_score.insert(neighbor, tentative);
-                    let ManhattenDistance(f) = ManhattenDistance::calculate(neighbor, goal);
+                    let OctileDistance(h) = OctileDistance::calculate(neighbor, goal);
                     open.push(HeapEntry {
-                        f: tentative + f,
+                        f: tentative + h,
                         node: neighbor,
                     });
                 }
@@ -132,8 +162,9 @@ mod tests {
     fn detours_around_wall() {
         let m = map_from(&[".....", "..#..", "....."]);
         let p = AStarPathFindingAlgorithm::compute_path(&m, (0, 1), (4, 1)).unwrap();
-        // 4 straight + 2 detour = 6 steps → 7 nodes.
-        assert_eq!(p.len(), 7);
+        // Octile A* can slip diagonally past the single blocker; two diagonal
+        // moves + two straight moves = 5 nodes total.
+        assert_eq!(p.len(), 5);
     }
 
     #[test]

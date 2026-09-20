@@ -16,6 +16,7 @@ data.path = "crates/data"
 
 postcard = { version = "1", features = ["use-std"] }
 bytemuck = { version = "1", features = ["derive"] }
+fixed = "1"
 glam = "0.29"
 hecs = "0.10"
 image = "0.25"

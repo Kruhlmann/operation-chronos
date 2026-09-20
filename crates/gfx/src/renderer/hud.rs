@@ -3,8 +3,13 @@ use data::constants::{
     SELECTION_PANEL_MAX_SLOTS, SELECTION_PANEL_PADDING, SELECTION_PORTRAIT_GAP,
     SELECTION_PORTRAIT_SIZE,
 };
-use gameplay::Marquee;
+use gameplay::SelectionMarquee;
 use world::entity::UnitKind;
+
+#[inline]
+pub fn selection_panel_top(surface_height: f32) -> f32 {
+    surface_height - SELECTION_PANEL_HEIGHT
+}
 
 #[derive(Clone, Copy)]
 pub struct SelectionEntry {
@@ -353,7 +358,7 @@ impl HudRenderer {
         }
     }
 
-    pub fn set_marquee(&mut self, queue: &wgpu::Queue, marquee: Option<&Marquee>) {
+    pub fn set_marquee(&mut self, queue: &wgpu::Queue, marquee: Option<&SelectionMarquee>) {
         let Some(m) = marquee else {
             self.rect_visible = false;
             return;

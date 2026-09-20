@@ -1,8 +1,8 @@
-pub mod camera;
 pub mod pathfinding;
-pub mod selection;
-pub mod simulator;
+pub mod sim;
+pub mod view;
 
-pub use camera::*;
-pub use selection::*;
-pub use simulator::*;
+pub use sim::{
+    CommandLog, PlayerCommand, Sim, TICK_DELAY_BEFORE_COMMAND_TAKES_EFFECT, Tick, UNIT_PICK_RADIUS,
+};
+pub use view::{Camera, ClientView, Selection, SelectionMarquee};

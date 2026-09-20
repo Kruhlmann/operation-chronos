@@ -1,12 +1,10 @@
-pub type EntityId = u64;
-
 #[derive(Clone, Copy, Debug)]
-pub struct Marquee {
+pub struct SelectionMarquee {
     pub origin: [f32; 2],
     pub current: [f32; 2],
 }
 
-impl Marquee {
+impl SelectionMarquee {
     pub fn min(&self) -> [f32; 2] {
         [
             self.origin[0].min(self.current[0]),
@@ -24,8 +22,20 @@ impl Marquee {
 
 #[derive(Default)]
 pub struct Selection {
-    pub marquee: Option<Marquee>,
+    pub marquee: Option<SelectionMarquee>,
+    pub selected: Vec<hecs::Entity>,
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct Selected;
+impl Selection {
+    pub fn clear(&mut self) {
+        self.selected.clear();
+    }
+
+    pub fn replace(&mut self, entities: Vec<hecs::Entity>) {
+        self.selected = entities;
+    }
+
+    pub fn contains(&self, entity: hecs::Entity) -> bool {
+        self.selected.contains(&entity)
+    }
+}

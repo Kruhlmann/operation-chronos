@@ -1,10 +1,9 @@
-use glam::Vec2;
-
 use data::constants::{
     FILE_MAGIC_BYTES_MAP, ISOMETRIC_TILE_HALF_HEIGHT, ISOMETRIC_TILE_HALF_WIDTH,
 };
 use data::geometry::{Disc, Position};
 use data::io::Saveable;
+use data::math::{FixedVec2, Scalar, scalar_from_render, scalar_round_to_i32};
 
 use crate::{Tile, TilePlacement, TilePosition, WorldBounds};
 
@@ -43,12 +42,38 @@ impl Map {
         ]
     }
 
+    pub fn tile_to_world_sim(x: u16, y: u16) -> FixedVec2 {
+        let [ax, ay] = Self::tile_to_world(x, y);
+        FixedVec2::new(scalar_from_render(ax), scalar_from_render(ay))
+    }
+
+    pub fn tile_centre_sim(x: u16, y: u16) -> FixedVec2 {
+        let top = Self::tile_to_world_sim(x, y);
+        FixedVec2::new(
+            top.x,
+            top.y + scalar_from_render(ISOMETRIC_TILE_HALF_HEIGHT),
+        )
+    }
+
     pub fn get_tile_neighbors_unchecked(&self, tile: TilePosition) -> [TilePosition; 4] {
         [
             (tile.0 + 1, tile.1),
             (tile.0 - 1, tile.1),
             (tile.0, tile.1 + 1),
             (tile.0, tile.1 - 1),
+        ]
+    }
+
+    pub fn get_tile_neighbors_unchecked_octile(&self, tile: TilePosition) -> [TilePosition; 8] {
+        [
+            (tile.0 + 1, tile.1),
+            (tile.0 - 1, tile.1),
+            (tile.0, tile.1 + 1),
+            (tile.0, tile.1 - 1),
+            (tile.0 + 1, tile.1 + 1),
+            (tile.0 + 1, tile.1 - 1),
+            (tile.0 - 1, tile.1 + 1),
+            (tile.0 - 1, tile.1 - 1),
         ]
     }
 
@@ -73,13 +98,15 @@ impl Map {
         None
     }
 
-    pub fn get_world_tile_at(p: Vec2) -> TilePosition {
-        //   ( (tx-ty)*HALF_W, (tx+ty)*HALF_H + HALF_H )
-        let a = p.x / ISOMETRIC_TILE_HALF_WIDTH; //  tx - ty
-        let b = (p.y - ISOMETRIC_TILE_HALF_HEIGHT) / ISOMETRIC_TILE_HALF_HEIGHT; //  tx + ty
-        let fx = (a + b) * 0.5;
-        let fy = (b - a) * 0.5;
-        (fx.round() as i32, fy.round() as i32)
+    pub fn get_world_tile_at(p: FixedVec2) -> TilePosition {
+        let half_w: Scalar = scalar_from_render(ISOMETRIC_TILE_HALF_WIDTH);
+        let half_h: Scalar = scalar_from_render(ISOMETRIC_TILE_HALF_HEIGHT);
+        let two: Scalar = Scalar::const_from_int(2);
+        let a = p.x / half_w;
+        let b = (p.y - half_h) / half_h;
+        let fx = (a + b) / two;
+        let fy = (b - a) / two;
+        (scalar_round_to_i32(fx), scalar_round_to_i32(fy))
     }
 
     pub fn tile_at(&self, tx: i32, ty: i32) -> Option<&Tile> {

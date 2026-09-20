@@ -1,38 +1,38 @@
 use core::time::Duration;
 
 use data::constants::ORDER_MARKER_RENDER_DURATION;
-use glam::Vec2;
+use data::math::FixedVec2;
 
 #[derive(Clone, Debug)]
-pub struct UnitOrder {
-    pub waypoints: Vec<Vec2>,
+pub struct UnitMoveInstructions {
+    pub waypoints: Vec<FixedVec2>,
 }
 
-impl UnitOrder {
-    pub fn to(target: Vec2) -> Self {
+impl UnitMoveInstructions {
+    pub fn to(target: FixedVec2) -> Self {
         Self {
             waypoints: vec![target],
         }
     }
 
-    pub fn path(waypoints: Vec<Vec2>) -> Self {
+    pub fn path(waypoints: Vec<FixedVec2>) -> Self {
         Self { waypoints }
     }
 
-    pub fn final_target(&self) -> Option<Vec2> {
+    pub fn final_target(&self) -> Option<FixedVec2> {
         self.waypoints.last().copied()
     }
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct MoveMarker {
+pub struct UnitMovementMarker {
     pub unit: hecs::Entity,
-    pub target_position: Vec2,
+    pub target_position: FixedVec2,
     pub remaining: Duration,
 }
 
-impl MoveMarker {
-    pub fn new(unit: hecs::Entity, target_position: Vec2) -> Self {
+impl UnitMovementMarker {
+    pub fn new(unit: hecs::Entity, target_position: FixedVec2) -> Self {
         Self {
             unit,
             target_position,

@@ -10,9 +10,8 @@ use data::constants::{
     SPRITE_SIZE_PIXELS, TICK_TIME,
 };
 use data::geometry::{Disc, Footprint, Position};
-use gameplay::selection::Selected;
 
-use gameplay::simulator::Simulator;
+use gameplay::{ClientView, Sim};
 use winit::{
     application::ApplicationHandler,
     event::{ElementState, KeyEvent, WindowEvent},
@@ -21,7 +20,7 @@ use winit::{
     window::{Window, WindowId},
 };
 use world::Map;
-use world::entity::{Health, Name, UnitKind, UnitOrder};
+use world::entity::{Health, Name, UnitKind, UnitMoveInstructions};
 
 pub struct RunningState {
     pub window: Arc<Window>,
@@ -33,7 +32,8 @@ pub struct RunningState {
     pub lines: LineRenderer,
     pub debug_lines: LineRenderer,
     pub debug_overlay: bool,
-    pub simulator: Simulator,
+    pub sim: Sim,
+    pub view: ClientView,
     pub input: Input,
     pub hud: HudRenderer,
     last_tick: Instant,
@@ -47,7 +47,7 @@ pub enum State {
 
 pub struct Gui {
     pub state: State,
-    pub pending_simulator: Option<Simulator>,
+    pub pending: Option<(Sim, ClientView)>,
     pub library: AssetLibrary,
     pub next_frame_scheduled: Instant,
     pub initial_logical_size: [u32; 2],
@@ -57,9 +57,9 @@ pub struct Gui {
 }
 
 impl Gui {
-    pub fn new(library: AssetLibrary, simulator: Simulator) -> Self {
+    pub fn new(library: AssetLibrary, sim: Sim, view: ClientView) -> Self {
         Self {
-            pending_simulator: Some(simulator),
+            pending: Some((sim, view)),
             library,
             state: State::Uninitialized,
             next_frame_scheduled: Instant::now(),
@@ -77,10 +77,7 @@ impl ApplicationHandler for Gui {
             return;
         }
 
-        let simulator = self
-            .pending_simulator
-            .take()
-            .expect("simulator already moved");
+        let (sim, view) = self.pending.take().expect("sim already moved");
 
         let window = Arc::new(
             event_loop
@@ -123,39 +120,23 @@ impl ApplicationHandler for Gui {
             SPRITE_SHEET_COLUMNS,
             SPRITE_SHEET_ROWS,
             SPRITE_SIZE_PIXELS as f32,
-            &simulator.camera,
+            &view.camera,
         );
-        renderer.set_map(&gpu.queue, &simulator.map);
+        renderer.set_map(&gpu.queue, &sim.map);
 
         let units = UnitScene::new(
             &gpu.device,
             &gpu.queue,
             gpu.config.format,
             &assets,
-            &simulator.camera,
+            &view.camera,
             SheetId::ALL,
         );
 
-        let selection = LineRenderer::new(
-            &gpu.device,
-            &gpu.queue,
-            gpu.config.format,
-            &simulator.camera,
-        );
-
-        let lines = LineRenderer::new(
-            &gpu.device,
-            &gpu.queue,
-            gpu.config.format,
-            &simulator.camera,
-        );
-
-        let debug_lines = LineRenderer::new(
-            &gpu.device,
-            &gpu.queue,
-            gpu.config.format,
-            &simulator.camera,
-        );
+        let selection = LineRenderer::new(&gpu.device, &gpu.queue, gpu.config.format, &view.camera);
+        let lines = LineRenderer::new(&gpu.device, &gpu.queue, gpu.config.format, &view.camera);
+        let debug_lines =
+            LineRenderer::new(&gpu.device, &gpu.queue, gpu.config.format, &view.camera);
 
         self.state = State::Running(Box::new(RunningState {
             window,
@@ -167,7 +148,8 @@ impl ApplicationHandler for Gui {
             lines,
             debug_lines,
             debug_overlay: false,
-            simulator,
+            sim,
+            view,
             input: Input::default(),
             hud,
             last_tick: Instant::now(),
@@ -221,13 +203,13 @@ impl ApplicationHandler for Gui {
                 if size.height > 0 {
                     let viewport = [size.width as f32, size.height as f32];
                     running.hud.set_surface_size(&running.gpu.queue, viewport);
-                    running.simulator.resize(viewport);
+                    running.view.resize(viewport);
                     running
                         .renderer
-                        .set_camera(&running.gpu.queue, &running.simulator.camera);
+                        .set_camera(&running.gpu.queue, &running.view.camera);
                     running
                         .units
-                        .set_camera(&running.gpu.queue, &running.simulator.camera);
+                        .set_camera(&running.gpu.queue, &running.view.camera);
                 }
             }
 
@@ -260,20 +242,27 @@ impl ApplicationHandler for Gui {
                     let text = format!("FPS: {fps:.0}  {frame_ms:.2} MS");
                     running.hud.set_text(&running.gpu.queue, &text, [8.0, 8.0]);
                 }
-                running.hud.set_marquee(
-                    &running.gpu.queue,
-                    running.simulator.selection.marquee.as_ref(),
-                );
+                running
+                    .hud
+                    .set_marquee(&running.gpu.queue, running.view.selection.marquee.as_ref());
 
                 let selection_entries: Vec<SelectionEntry> = running
-                    .simulator
-                    .ecs
-                    .query::<(&Selected, &UnitKind, &Name, &Health)>()
+                    .view
+                    .selection
+                    .selected
                     .iter()
-                    .map(|(_, (_, kind, name, hp))| SelectionEntry {
-                        kind: *kind,
-                        name: name.0,
-                        health_fraction: hp.fraction(),
+                    .filter_map(|&e| {
+                        running
+                            .sim
+                            .ecs
+                            .query_one::<(&UnitKind, &Name, &Health)>(e)
+                            .ok()?
+                            .get()
+                            .map(|(k, n, h)| SelectionEntry {
+                                kind: *k,
+                                name: n.0,
+                                health_fraction: h.fraction(),
+                            })
                     })
                     .collect();
                 let viewport = [
@@ -289,28 +278,23 @@ impl ApplicationHandler for Gui {
                 running.tick_accumulator =
                     (running.tick_accumulator + tick_dt).min(Duration::from_millis(250));
                 while running.tick_accumulator >= TICK_TIME {
-                    running.simulator.tick(TICK_TIME);
+                    running.sim.tick(TICK_TIME);
                     running.tick_accumulator -= TICK_TIME;
                 }
 
-                running
-                    .units
-                    .refresh(&running.gpu.queue, &running.simulator.ecs);
+                running.units.refresh(&running.gpu.queue, &running.sim.ecs);
                 refresh_selection_markers(
                     &mut running.selection,
                     &running.gpu.queue,
-                    &running.simulator.ecs,
+                    &running.sim.ecs,
+                    &running.view.selection.selected,
                 );
                 if running.debug_overlay {
-                    refresh_move_lines(
-                        &mut running.lines,
-                        &running.gpu.queue,
-                        &running.simulator.ecs,
-                    );
+                    refresh_move_lines(&mut running.lines, &running.gpu.queue, &running.sim.ecs);
                     refresh_debug_overlay(
                         &mut running.debug_lines,
                         &running.gpu.queue,
-                        &running.simulator,
+                        &running.sim,
                     );
                 } else {
                     running.lines.set_segments(&running.gpu.queue, &[]);
@@ -318,19 +302,19 @@ impl ApplicationHandler for Gui {
                 }
                 running
                     .selection
-                    .set_camera(&running.gpu.queue, &running.simulator.camera);
+                    .set_camera(&running.gpu.queue, &running.view.camera);
                 running
                     .lines
-                    .set_camera(&running.gpu.queue, &running.simulator.camera);
+                    .set_camera(&running.gpu.queue, &running.view.camera);
                 running
                     .debug_lines
-                    .set_camera(&running.gpu.queue, &running.simulator.camera);
+                    .set_camera(&running.gpu.queue, &running.view.camera);
                 running
                     .units
-                    .set_camera(&running.gpu.queue, &running.simulator.camera);
+                    .set_camera(&running.gpu.queue, &running.view.camera);
                 running
                     .renderer
-                    .set_camera(&running.gpu.queue, &running.simulator.camera);
+                    .set_camera(&running.gpu.queue, &running.view.camera);
                 running.gpu.render(
                     &running.renderer,
                     &running.selection,
@@ -358,30 +342,33 @@ impl ApplicationHandler for Gui {
                 running.debug_overlay = !running.debug_overlay;
             }
 
-            other => match running.input.handle(&other, &mut running.simulator) {
+            other => match running.input.handle(&other, &mut running.view) {
                 Some(InputEventSideEffect::UpdateCamera) => {
                     running
                         .renderer
-                        .set_camera(&running.gpu.queue, &running.simulator.camera);
+                        .set_camera(&running.gpu.queue, &running.view.camera);
                     running
                         .units
-                        .set_camera(&running.gpu.queue, &running.simulator.camera);
+                        .set_camera(&running.gpu.queue, &running.view.camera);
                     running
                         .selection
-                        .set_camera(&running.gpu.queue, &running.simulator.camera);
+                        .set_camera(&running.gpu.queue, &running.view.camera);
                     running
                         .lines
-                        .set_camera(&running.gpu.queue, &running.simulator.camera);
+                        .set_camera(&running.gpu.queue, &running.view.camera);
+                }
+                Some(InputEventSideEffect::CommitMarquee) => {
+                    running.view.commit_marquee(&running.sim);
                 }
                 Some(InputEventSideEffect::ClickLeft(p))
                     if !is_in_selection_panel(p, &running.gpu) =>
                 {
-                    running.simulator.click_select(p)
+                    running.view.click_select(&running.sim, p)
                 }
                 Some(InputEventSideEffect::ClickRight(p))
                     if !is_in_selection_panel(p, &running.gpu) =>
                 {
-                    running.simulator.click_order(p)
+                    running.view.click_order(&mut running.sim, p)
                 }
                 Some(InputEventSideEffect::ClickLeft(_))
                 | Some(InputEventSideEffect::ClickRight(_)) => {}
@@ -413,17 +400,27 @@ fn push_disc_outline(
     color: [f32; 4],
 ) {
     const SEGMENTS: usize = 24;
-    let mut points: Vec<glam::Vec2> = disc.outline(SEGMENTS).map(|p| p.0).collect();
+    let mut points: Vec<glam::Vec2> = disc.outline_render(SEGMENTS).collect();
     points.push(points[0]);
     for w in points.windows(2) {
         segs.push((w[0], w[1], color));
     }
 }
 
-fn refresh_selection_markers(renderer: &mut LineRenderer, queue: &wgpu::Queue, ecs: &hecs::World) {
+fn refresh_selection_markers(
+    renderer: &mut LineRenderer,
+    queue: &wgpu::Queue,
+    ecs: &hecs::World,
+    selected: &[hecs::Entity],
+) {
     let mut segs: Vec<(glam::Vec2, glam::Vec2, [f32; 4])> = Vec::new();
-    for (_e, (pos, fp, _sel)) in ecs.query::<(&Position, &Footprint, &Selected)>().iter() {
-        push_disc_outline(&mut segs, fp.disc_at(*pos), SELECTION_COLOR);
+    for &e in selected {
+        let Ok(mut q) = ecs.query_one::<(&Position, &Footprint)>(e) else {
+            continue;
+        };
+        if let Some((pos, fp)) = q.get() {
+            push_disc_outline(&mut segs, fp.disc_at(*pos), SELECTION_COLOR);
+        }
     }
     renderer.set_segments(queue, &segs);
 }
@@ -431,11 +428,12 @@ fn refresh_selection_markers(renderer: &mut LineRenderer, queue: &wgpu::Queue, e
 fn refresh_move_lines(renderer: &mut LineRenderer, queue: &wgpu::Queue, ecs: &hecs::World) {
     let mut segments: Vec<(glam::Vec2, glam::Vec2, [f32; 4])> = Vec::new();
     let color = [0.1, 0.95, 0.2, 1.0];
-    for (_e, (pos, order)) in ecs.query::<(&Position, &UnitOrder)>().iter() {
-        let mut prev = pos.0;
+    for (_e, (pos, order)) in ecs.query::<(&Position, &UnitMoveInstructions)>().iter() {
+        let mut prev = pos.to_render();
         for &wp in &order.waypoints {
-            segments.push((prev, wp, color));
-            prev = wp;
+            let next = wp.to_render();
+            segments.push((prev, next, color));
+            prev = next;
         }
     }
     renderer.set_segments(queue, &segments);
@@ -444,11 +442,7 @@ fn refresh_move_lines(renderer: &mut LineRenderer, queue: &wgpu::Queue, ecs: &he
 const DEBUG_TILE_COLOR: [f32; 4] = [1.0, 0.2, 0.2, 0.9];
 const DEBUG_UNIT_COLOR: [f32; 4] = [0.2, 1.0, 0.4, 0.9];
 
-fn refresh_debug_overlay(
-    renderer: &mut LineRenderer,
-    queue: &wgpu::Queue,
-    state: &gameplay::simulator::Simulator,
-) {
+fn refresh_debug_overlay(renderer: &mut LineRenderer, queue: &wgpu::Queue, sim: &Sim) {
     use data::constants::{ISOMETRIC_TILE_HALF_HEIGHT, ISOMETRIC_TILE_HALF_WIDTH};
     let mut segs: Vec<(glam::Vec2, glam::Vec2, [f32; 4])> = Vec::new();
 
@@ -465,9 +459,9 @@ fn refresh_debug_overlay(
         out.push((left, top, color));
     };
 
-    for ty in 0..state.map.height as i32 {
-        for tx in 0..state.map.width as i32 {
-            if !state.map.is_passable(tx, ty) {
+    for ty in 0..sim.map.height as i32 {
+        for tx in 0..sim.map.width as i32 {
+            if !sim.map.is_passable(tx, ty) {
                 let [ax, ay] = Map::tile_to_world(tx as u16, ty as u16);
                 let center = glam::Vec2::new(ax, ay + ISOMETRIC_TILE_HALF_HEIGHT);
                 diamond(center, 1.0, DEBUG_TILE_COLOR, &mut segs);
@@ -475,7 +469,7 @@ fn refresh_debug_overlay(
         }
     }
 
-    for (_e, (pos, fp)) in state.ecs.query::<(&Position, &Footprint)>().iter() {
+    for (_e, (pos, fp)) in sim.ecs.query::<(&Position, &Footprint)>().iter() {
         push_disc_outline(&mut segs, fp.disc_at(*pos), DEBUG_UNIT_COLOR);
     }
 

@@ -14,8 +14,7 @@ impl SpriteRef {
         let total = self.sheet.facings().max(1);
         let count = self.frame_count.max(1);
         let stride = (total / count).max(1);
-
-        let mut a = facing.0 % std::f32::consts::TAU;
+        let mut a = facing.0.to_angle_render() % std::f32::consts::TAU;
         if a < 0.0 {
             a += std::f32::consts::TAU;
         }

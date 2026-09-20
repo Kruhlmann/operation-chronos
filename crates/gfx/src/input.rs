@@ -4,7 +4,7 @@ use data::constants::{
     CAMERA_ZOOM_STEP, PAN_DRAG_CLICK_TIME, PAN_DRAG_CLICK_TOLERANCE_PIXELS,
     PAN_DRAG_TOLERANCE_PIXELS,
 };
-use gameplay::Simulator;
+use gameplay::ClientView;
 
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 
@@ -68,6 +68,7 @@ impl Drag {
 
 pub enum InputEventSideEffect {
     UpdateCamera,
+    CommitMarquee,
     ClickLeft([f32; 2]),
     ClickRight([f32; 2]),
 }
@@ -76,7 +77,7 @@ impl Input {
     pub fn handle(
         &mut self,
         event: &WindowEvent,
-        world: &mut Simulator,
+        world: &mut ClientView,
     ) -> Option<InputEventSideEffect> {
         match event {
             WindowEvent::MouseInput {
@@ -120,8 +121,7 @@ impl Input {
                                 Some(InputEventSideEffect::ClickLeft(self.cursor))
                             }
                             GuiMouseButton::Left if a.drag.active => {
-                                world.commit_marquee();
-                                None
+                                Some(InputEventSideEffect::CommitMarquee)
                             }
                             GuiMouseButton::Left => {
                                 Some(InputEventSideEffect::ClickLeft(self.cursor))

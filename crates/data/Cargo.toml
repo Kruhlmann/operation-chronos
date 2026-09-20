@@ -6,6 +6,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
+fixed.workspace = true
 glam.workspace = true
 lazy_static.workspace = true
 postcard.workspace = true

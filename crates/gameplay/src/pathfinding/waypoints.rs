@@ -1,19 +1,17 @@
-use data::constants::ISOMETRIC_TILE_HALF_HEIGHT;
-use glam::Vec2;
+use data::math::FixedVec2;
 use world::{Map, TilePosition};
 
-pub struct Waypoints(pub Vec<Vec2>);
+pub struct Waypoints(pub Vec<FixedVec2>);
 
 impl Waypoints {
-    pub fn compute_from_path(start: Vec2, end: Vec2, path: &[TilePosition]) -> Self {
-        let mut out: Vec<Vec2> = Vec::new();
+    pub fn compute_from_path(start: FixedVec2, end: FixedVec2, path: &[TilePosition]) -> Self {
+        let mut out: Vec<FixedVec2> = Vec::new();
         if path.len() <= 1 {
             out.push(end);
             return Self(out);
         }
         for &(tx, ty) in path.iter().skip(1) {
-            let [ax, ay] = Map::tile_to_world(tx as u16, ty as u16);
-            out.push(Vec2::new(ax, ay + ISOMETRIC_TILE_HALF_HEIGHT));
+            out.push(Map::tile_centre_sim(tx as u16, ty as u16));
         }
         if let Some(last) = out.last_mut() {
             *last = end;

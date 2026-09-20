@@ -1,3 +1,5 @@
+#![allow(clippy::disallowed_types)]
+
 use std::collections::HashMap;
 
 use data::geometry::{Facing, Position};
@@ -62,7 +64,7 @@ impl UnitScene {
             for part in parts {
                 let face_val = part.facing_override.map(Facing).unwrap_or(*facing);
                 let frame = part.sprite.frame_for(face_val);
-                let world_pos = pos.0 + part.offset;
+                let world_pos = pos.to_render() + part.offset;
                 if let Some(bin) = batches.get_mut(&part.sprite.sheet) {
                     bin.push((world_pos, frame));
                 }
